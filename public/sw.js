@@ -24,6 +24,7 @@ self.addEventListener("activate", (event) => {
       );
     }),
   );
+  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
@@ -31,11 +32,13 @@ self.addEventListener("fetch", (event) => {
 
   if (request.method !== "GET") return;
 
-  if (request.url.includes("supabase")) {
+  // Network-first for Supabase and API calls
+  if (request.url.includes("supabase") || request.url.includes("/api/")) {
     event.respondWith(networkFirst(request));
     return;
   }
 
+  // Cache-first for static assets
   if (
     request.destination === "style" ||
     request.destination === "script" ||
@@ -46,6 +49,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Network-first for documents (HTML pages)
+  if (request.destination === "document" || request.destination === "") {
+    event.respondWith(networkFirst(request));
+    return;
+  }
+
+  // Default: network-first
   event.respondWith(networkFirst(request));
 });
 

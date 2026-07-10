@@ -1,8 +1,9 @@
 {
-  "name": "Lapah — Destinasi Wisata & Kuliner",
+  "name": "Lapah — Destinasi Wisata & Kuliner Lampung Timur",
   "short_name": "Lapah",
-  "description": "Jelajahi destinasi wisata dan kuliner terbaik di Indonesia",
+  "description": "Jelajahi destinasi wisata dan kuliner terbaik di Lampung Timur",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#fafafa",
   "theme_color": "#fafafa",
@@ -10,7 +11,7 @@
   "icons": [
     {
       "src": "/icon.svg",
-      "sizes": "512x512",
+      "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
