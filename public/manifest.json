@@ -1,0 +1,18 @@
+{
+  "name": "Lapah — Destinasi Wisata & Kuliner",
+  "short_name": "Lapah",
+  "description": "Jelajahi destinasi wisata dan kuliner terbaik di Indonesia",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fafafa",
+  "theme_color": "#fafafa",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
