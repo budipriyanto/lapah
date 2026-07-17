@@ -1,6 +1,7 @@
 export interface Destination {
   id: string;
   title: string;
+  slug: string;
   category: "wisata" | "kuliner" | "penginapan";
   subcategory: string | null;
   description: string | null;
@@ -42,6 +43,7 @@ export interface UserRole {
 export interface Event {
   id: string;
   title: string;
+  slug: string;
   location: string | null;
   description: string | null;
   date_start: string;

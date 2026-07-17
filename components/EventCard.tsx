@@ -32,7 +32,7 @@ export default function EventCard({ event, images, compact = false }: EventCardP
 
   return (
     <Link
-      href={`/events/${event.id}`}
+      href={`/events/${event.slug}`}
       className={`group block overflow-hidden rounded-xl bg-white shadow-sm transition-all hover:shadow-md ${
         compact ? "w-56 shrink-0 snap-start" : ""
       }`}

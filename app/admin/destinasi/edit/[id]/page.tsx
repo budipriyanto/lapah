@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { slugify } from "@/utils/slug";
 import type { Destination, DestinationImage } from "@/utils/supabase/types";
 
 export default function EditDestinasi() {
@@ -77,6 +78,7 @@ export default function EditDestinasi() {
       .from("destinations")
       .update({
         title: form.title,
+        slug: slugify(form.title),
         category: form.category,
         subcategory: form.subcategory || null,
         description: form.description || null,

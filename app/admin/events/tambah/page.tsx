@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { slugify } from "@/utils/slug";
 
 interface ImageEntry {
   url: string;
@@ -49,6 +50,7 @@ export default function TambahEvent() {
       .from("events")
       .insert({
         title: form.title,
+        slug: slugify(form.title),
         description: form.description || null,
         location: form.location || null,
         date_start: form.date_start,

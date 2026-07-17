@@ -324,7 +324,6 @@ export default function DetailClient({ id }: { id: string }) {
         )}
       </div>
 
-      {/* Floating buttons */}
       <div className="fixed bottom-20 right-6 z-[60] flex flex-col gap-3">
         <button
           onClick={() => toggle(id)}

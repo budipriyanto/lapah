@@ -8,15 +8,15 @@ import type { Review } from "@/utils/supabase/types";
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
-  const [reviews, setReviews] = useState<(Review & { dest_title?: string })[]>([]);
+  const [reviews, setReviews] = useState<(Review & { dest_title?: string; dest_slug?: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
   useEffect(() => {
     if (!user) return;
-    supabase
+      supabase
       .from("reviews")
-      .select("*, destinations!inner(title)")
+      .select("*, destinations!inner(title, slug)")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .then(({ data }) => {
@@ -25,6 +25,7 @@ export default function ProfilePage() {
             data.map((r: any) => ({
               ...r,
               dest_title: r.destinations?.title ?? "",
+              dest_slug: r.destinations?.slug ?? "",
             })),
           );
         }
@@ -62,7 +63,6 @@ export default function ProfilePage() {
           </div>
           <div>
             <p className="font-semibold text-[#1a1a1a]">{user.email}</p>
-            <p className="text-xs text-[#737373]">{user.id}</p>
           </div>
         </div>
       </div>
@@ -89,8 +89,8 @@ export default function ProfilePage() {
           {reviews.map((r) => (
             <div key={r.id} className="rounded-xl bg-white p-4 shadow-sm">
               <div className="mb-1 flex items-center justify-between">
-                <Link
-                  href={`/destinasi/${r.destination_id}`}
+                  <Link
+                    href={`/destinasi/${r.dest_slug}`}
                   className="text-sm font-medium text-[#0066cc] hover:underline"
                 >
                   {r.dest_title || "(destinasi)"}

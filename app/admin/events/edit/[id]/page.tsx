@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { slugify } from "@/utils/slug";
 import type { Event, EventImage } from "@/utils/supabase/types";
 
 interface ImageEntry {
@@ -85,6 +86,7 @@ export default function EditEvent() {
       .from("events")
       .update({
         title: form.title,
+        slug: slugify(form.title),
         description: form.description || null,
         location: form.location || null,
         date_start: form.date_start,

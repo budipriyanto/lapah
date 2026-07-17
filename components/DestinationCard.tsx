@@ -42,7 +42,7 @@ export default function DestinationCard({
   if (compact) {
     return (
       <Link
-        href={`/destinasi/${destination.id}`}
+        href={`/destinasi/${destination.slug}`}
         className="group w-56 shrink-0 snap-start overflow-hidden rounded-xl bg-white shadow-sm transition-all hover:shadow-md"
       >
         <div suppressHydrationWarning className="relative aspect-[3/2] overflow-hidden bg-zinc-100">
