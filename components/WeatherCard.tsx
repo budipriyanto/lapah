@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { reverseGeocode } from "@/utils/geocode";
 
 const WEATHER_BASE = process.env.NEXT_PUBLIC_WEATHER_BASE;
@@ -61,6 +61,9 @@ export default function WeatherCard() {
   const [data, setData] = useState<WeatherData | null>(null);
   const [gpsStatus, setGpsStatus] = useState<"idle" | "locating" | "done" | "denied">("idle");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const lastCoords = useRef<{ lat: number; lon: number } | null>(null);
 
   const fetchWeather = useCallback(async (lat: number, lon: number) => {
     if (!WEATHER_BASE) {
@@ -69,6 +72,8 @@ export default function WeatherCard() {
     }
 
     try {
+      lastCoords.current = { lat, lon };
+
       const geo = await reverseGeocode(lat, lon);
       const location = geo
         ? [geo.city, geo.region].filter(Boolean).join(", ")
@@ -90,11 +95,36 @@ export default function WeatherCard() {
         windSpeed: Math.round(json.current.wind_speed_10m),
       });
     } catch {
+      setError(true);
       setData(null);
     } finally {
       setLoading(false);
+      setRetrying(false);
     }
   }, []);
+
+  const handleRetry = useCallback(() => {
+    setRetrying(true);
+    setError(false);
+    setData(null);
+    setGpsStatus("locating");
+
+    if (lastCoords.current) {
+      fetchWeather(lastCoords.current.lat, lastCoords.current.lon);
+    } else {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setGpsStatus("done");
+          fetchWeather(pos.coords.latitude, pos.coords.longitude);
+        },
+        () => {
+          setGpsStatus("denied");
+          setRetrying(false);
+        },
+        { timeout: 5000, enableHighAccuracy: false }
+      );
+    }
+  }, [fetchWeather]);
 
   useEffect(() => {
     const id = setTimeout(() => {
@@ -120,7 +150,7 @@ export default function WeatherCard() {
     return () => clearTimeout(id);
   }, [fetchWeather]);
 
-  if (loading) {
+  if (loading && !retrying) {
     return (
       <div className="mb-4 rounded-xl bg-white shadow-sm animate-pulse">
         <div className="flex items-center gap-3 px-4 py-3">
@@ -134,18 +164,25 @@ export default function WeatherCard() {
     );
   }
 
-  if (gpsStatus === "denied" || !data) {
-    if (gpsStatus === "denied" && !data) {
-      return (
-        <div className="mb-4 rounded-xl bg-white shadow-sm">
-          <div className="px-4 py-3 text-center text-sm text-[#737373]">
-            Aktifkan GPS untuk melihat cuaca terkini
-          </div>
+  if ((gpsStatus === "denied" || error) && !data) {
+    return (
+      <div className="mb-4 rounded-xl bg-white shadow-sm">
+        <div className="px-4 py-3 text-center">
+          <p className="text-sm text-red-500">❌ Gagal memuat cuaca</p>
+          <button
+            onClick={handleRetry}
+            disabled={retrying}
+            className="mt-2 inline-flex items-center gap-1.5 text-xs text-[#0066cc] hover:underline disabled:opacity-50"
+          >
+            <span className={`inline-block ${retrying ? "animate-spin" : ""}`}>⟳</span>
+            Muat ulang
+          </button>
         </div>
-      );
-    }
-    return null;
+      </div>
+    );
   }
+
+  if (!data) return null;
 
   return (
     <div className="mb-4 rounded-xl bg-white shadow-sm">

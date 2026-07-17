@@ -152,7 +152,7 @@ export default function EditDestinasi() {
           <label className="mb-1 block text-sm font-medium text-[#1a1a1a]">Images</label>
           <div className="space-y-2">
             {images.map((img, i) => (
-              <div key={i} className="flex items-center gap-2">
+              <div key={i} className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
                 <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-zinc-100">
                   {img.image_url.trim() ? (
                     <img
@@ -239,21 +239,23 @@ export default function EditDestinasi() {
                   placeholder="URL gambar"
                   value={img.image_url}
                   onChange={(e) => updateImage(i, "image_url", e.target.value)}
-                  className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-[#0066cc]"
+                  className="min-w-[130px] flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-[#0066cc]"
                 />
-                <label className="flex items-center gap-1 text-xs text-[#737373]">
-                  <input
-                    type="checkbox"
-                    checked={img.is_hero}
-                    onChange={(e) => updateImage(i, "is_hero", e.target.checked)}
-                  />
-                  Utama
-                </label>
-                {images.length > 1 && (
-                  <button type="button" onClick={() => removeImage(i)} className="text-xs text-red-500 hover:underline">
-                    Hapus
-                  </button>
-                )}
+                <div className="flex shrink-0 items-center gap-2">
+                  <label className="flex items-center gap-1 text-xs text-[#737373]">
+                    <input
+                      type="checkbox"
+                      checked={img.is_hero}
+                      onChange={(e) => updateImage(i, "is_hero", e.target.checked)}
+                    />
+                    Utama
+                  </label>
+                  {images.length > 1 && (
+                    <button type="button" onClick={() => removeImage(i)} className="text-xs text-red-500 hover:underline">
+                      Hapus
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { reverseGeocode } from "@/utils/geocode";
 
 const PRAYER_BASE = process.env.NEXT_PUBLIC_PRAYER_BASE;
@@ -110,6 +110,8 @@ export default function PrayerCard() {
   const [locationName, setLocationName] = useState("");
   const [gpsStatus, setGpsStatus] = useState<"idle" | "locating" | "done" | "denied">("idle");
   const [loading, setLoading] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const lastCoords = useRef<{ lat: number; lon: number } | null>(null);
 
   const fetchPrayer = useCallback(async (lat: number, lon: number) => {
     if (!PRAYER_BASE) {
@@ -121,13 +123,18 @@ export default function PrayerCard() {
     setError(false);
 
     try {
+      lastCoords.current = { lat, lon };
+
       const geo = await reverseGeocode(lat, lon);
       setLocationName(
         geo ? [geo.city, geo.region].filter(Boolean).join(", ") : ""
       );
 
+      const d = new Date();
+      const today = `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
+
       const res = await fetch(
-        `${PRAYER_BASE}/timings?latitude=${lat}&longitude=${lon}&method=11`
+        `${PRAYER_BASE}/timings/${today}?latitude=${lat}&longitude=${lon}&method=11`
       );
       const json = await res.json();
 
@@ -162,8 +169,33 @@ export default function PrayerCard() {
       setError(true);
     } finally {
       setLoading(false);
+      setRetrying(false);
     }
   }, []);
+
+  const handleRetry = useCallback(() => {
+    setRetrying(true);
+    setError(false);
+    setPrayer(null);
+    setDateInfo(null);
+    setGpsStatus("locating");
+
+    if (lastCoords.current) {
+      fetchPrayer(lastCoords.current.lat, lastCoords.current.lon);
+    } else {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setGpsStatus("done");
+          fetchPrayer(pos.coords.latitude, pos.coords.longitude);
+        },
+        () => {
+          setGpsStatus("denied");
+          setRetrying(false);
+        },
+        { timeout: 5000, enableHighAccuracy: false }
+      );
+    }
+  }, [fetchPrayer]);
 
   useEffect(() => {
     const id = setTimeout(() => {
@@ -189,30 +221,27 @@ export default function PrayerCard() {
     return () => clearTimeout(id);
   }, [fetchPrayer]);
 
-  if (loading) return <PrayerSkeleton />;
+  if (loading && !retrying) return <PrayerSkeleton />;
 
-  if (gpsStatus === "denied" && !prayer) {
-    return (
-      <div className="mb-6 rounded-xl bg-white p-4 shadow-sm sm:p-5">
-        <p className="mb-2 text-sm font-semibold text-[#1a1a1a]">
-          🕌 Jadwal Sholat
-        </p>
-        <p className="text-center text-xs text-[#737373]">
-          Aktifkan GPS untuk melihat jadwal sholat
-        </p>
-      </div>
-    );
-  }
-
-  if (error && !prayer) {
+  if ((gpsStatus === "denied" || error) && !prayer) {
     return (
       <div className="mb-6 rounded-xl bg-white p-4 shadow-sm sm:p-5">
         <p className="mb-2 text-sm font-semibold text-[#1a1a1a]">
           🕌 Jadwal Sholat
         </p>
         <p className="text-center text-xs text-red-500">
-          Gagal memuat jadwal sholat
+          ❌ Gagal memuat jadwal sholat
         </p>
+        <div className="mt-3 text-center">
+          <button
+            onClick={handleRetry}
+            disabled={retrying}
+            className="inline-flex items-center gap-1.5 text-xs text-[#0066cc] hover:underline disabled:opacity-50"
+          >
+            <span className={`inline-block ${retrying ? "animate-spin" : ""}`}>⟳</span>
+            Muat ulang
+          </button>
+        </div>
       </div>
     );
   }
