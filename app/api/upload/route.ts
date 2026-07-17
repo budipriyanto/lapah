@@ -21,7 +21,6 @@ export async function POST(req: NextRequest) {
   const dav = createClient(davUrl, {
     username: user,
     password: pass,
-    authType: "password",
   });
 
   try {
