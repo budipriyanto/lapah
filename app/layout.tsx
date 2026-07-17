@@ -21,6 +21,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://lapah.vercel.app"),
   title: "Destinasi Wisata & Kuliner Lampung Timur",
   description:
     "Jelajahi destinasi wisata dan kuliner terbaik di Lampung Timur. Temukan rekomendasi tempat, ulasan, dan informasi lengkap.",
@@ -52,6 +53,10 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <link rel="preconnect" href="https://file.lampungtimurkab.go.id" />
+        <link rel="dns-prefetch" href="https://file.lampungtimurkab.go.id" />
+      </head>
       <body className="min-h-full flex flex-col pb-[calc(20px+env(safe-area-inset-bottom))]">
         <SearchProvider>
           <AuthProvider>

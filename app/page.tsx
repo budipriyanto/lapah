@@ -1,13 +1,15 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import type { DestinationImage, EventImage } from "@/utils/supabase/types";
 import DestinationCard from "@/components/DestinationCard";
 import EventCard from "@/components/EventCard";
 import ScrollSection from "@/components/ScrollSection";
-import WeatherCard from "@/components/WeatherCard";
-import PrayerCard from "@/components/PrayerCard";
 import { useAllData } from "@/hooks/useSupabaseQuery";
+
+const WeatherCard = dynamic(() => import("@/components/WeatherCard"), { ssr: false });
+const PrayerCard = dynamic(() => import("@/components/PrayerCard"), { ssr: false });
 import { useSearchContext } from "@/contexts/SearchContext";
 import { useBookmarks } from "@/hooks/useBookmarks";
 
