@@ -1,106 +1,124 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { reverseGeocode } from "@/utils/geocode";
+
+const WEATHER_BASE = process.env.NEXT_PUBLIC_WEATHER_BASE;
 
 interface WeatherData {
   location: string;
   temperature: number;
   humidity: number;
   condition: string;
-  conditionEn: string;
   weatherCode: number;
-  iconUrl: string;
   windSpeed: number;
-  _fallback: boolean;
-  _errors: string[];
 }
 
-function getEmoji(code: number): string {
-  const map: Record<number, string> = {
-    0: "☀️",
-    1: "🌤️",
-    2: "☁️",
-    3: "🌦️",
-    4: "🌧️",
-    5: "🌧️",
-    61: "🌦️",
-    63: "🌧️",
-    80: "🌦️",
-    95: "⛈️",
-  };
-  return map[code] ?? "🌤️";
+const WMO_CONDITIONS: Record<number, string> = {
+  0: "Cerah",
+  1: "Cerah Berawan",
+  2: "Berawan",
+  3: "Berawan Tebal",
+  45: "Berkabut",
+  48: "Berkabut",
+  51: "Gerimis Ringan",
+  53: "Gerimis Sedang",
+  55: "Gerimis Deras",
+  56: "Gerimis Beku Ringan",
+  57: "Gerimis Beku Deras",
+  61: "Hujan Ringan",
+  63: "Hujan Sedang",
+  65: "Hujan Deras",
+  66: "Hujan Beku Ringan",
+  67: "Hujan Beku Deras",
+  71: "Salju Ringan",
+  73: "Salju Sedang",
+  75: "Salju Deras",
+  77: "Butiran Salju",
+  80: "Hujan Lokal Ringan",
+  81: "Hujan Lokal Sedang",
+  82: "Hujan Lokal Deras",
+  85: "Salju Lokal Ringan",
+  86: "Salju Lokal Deras",
+  95: "Badai Petir",
+  96: "Badai Petir dengan Hujan Es Ringan",
+  99: "Badai Petir dengan Hujan Es Deras",
+};
+
+function getWeatherEmoji(code: number): string {
+  if (code === 0) return "☀️";
+  if (code <= 2) return "⛅";
+  if (code <= 3) return "☁️";
+  if (code <= 48) return "🌫️";
+  if (code <= 57) return "🌦️";
+  if (code <= 67) return "🌧️";
+  if (code <= 86) return "🌧️";
+  if (code >= 95) return "⛈️";
+  return "🌤️";
 }
 
 export default function WeatherCard() {
   const [data, setData] = useState<WeatherData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [usingGps, setUsingGps] = useState(false);
-  const [showDbg, setShowDbg] = useState(false);
-  const gpsRef = useRef(false);
+  const [gpsStatus, setGpsStatus] = useState<"idle" | "locating" | "done" | "denied">("idle");
+  const [loading, setLoading] = useState(false);
 
-  const fetchWeather = useCallback(async (lat?: number, lon?: number) => {
-    const params = new URLSearchParams();
-    if (lat !== undefined && lon !== undefined) {
-      params.set("lat", String(lat));
-      params.set("lon", String(lon));
+  const fetchWeather = useCallback(async (lat: number, lon: number) => {
+    if (!WEATHER_BASE) {
+      setLoading(false);
+      return;
     }
+
     try {
-      const res = await fetch(`/api/weather?${params.toString()}`);
-      if (!res.ok) throw new Error("Failed");
+      const geo = await reverseGeocode(lat, lon);
+      const location = geo
+        ? [geo.city, geo.region].filter(Boolean).join(", ")
+        : `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+
+      const res = await fetch(
+        `${WEATHER_BASE}/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=auto`
+      );
+      if (!res.ok) throw new Error("Gagal mengambil data cuaca");
+
       const json = await res.json();
-      if (json.error) throw new Error(json.error);
-      if (!(gpsRef.current && !lat)) {
-        setData(json);
-        setLoading(false);
-      }
+
+      setData({
+        location,
+        temperature: Math.round(json.current.temperature_2m),
+        humidity: json.current.relative_humidity_2m,
+        condition: WMO_CONDITIONS[json.current.weather_code] ?? "Tidak diketahui",
+        weatherCode: json.current.weather_code,
+        windSpeed: Math.round(json.current.wind_speed_10m),
+      });
     } catch {
-      if (!(gpsRef.current && !lat)) setLoading(false);
+      setData(null);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     const id = setTimeout(() => {
-      fetchWeather();
-
-      if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            gpsRef.current = true;
-            setUsingGps(true);
-            fetchWeather(pos.coords.latitude, pos.coords.longitude);
-          },
-          () => {},
-          { timeout: 5000, enableHighAccuracy: false },
-        );
+      if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
+        setGpsStatus("denied");
+        return;
       }
-    }, 0);
 
-    return () => clearTimeout(id);
-  }, [fetchWeather]);
-
-  async function refresh() {
-    setRefreshing(true);
-    gpsRef.current = false;
-    setUsingGps(false);
-
-    if ("geolocation" in navigator) {
+      setGpsStatus("locating");
+      setLoading(true);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          gpsRef.current = true;
-          setUsingGps(true);
-          fetchWeather(pos.coords.latitude, pos.coords.longitude).finally(() => setRefreshing(false));
+          setGpsStatus("done");
+          fetchWeather(pos.coords.latitude, pos.coords.longitude);
         },
         () => {
-          fetchWeather().finally(() => setRefreshing(false));
+          setGpsStatus("denied");
+          setLoading(false);
         },
-        { timeout: 5000, enableHighAccuracy: false },
+        { timeout: 5000, enableHighAccuracy: false }
       );
-    } else {
-      await fetchWeather();
-      setRefreshing(false);
-    }
-  }
+    }, 0);
+    return () => clearTimeout(id);
+  }, [fetchWeather]);
 
   if (loading) {
     return (
@@ -116,12 +134,25 @@ export default function WeatherCard() {
     );
   }
 
-  if (!data) return null;
+  if (gpsStatus === "denied" || !data) {
+    if (gpsStatus === "denied" && !data) {
+      return (
+        <div className="mb-4 rounded-xl bg-white shadow-sm">
+          <div className="px-4 py-3 text-center text-sm text-[#737373]">
+            Aktifkan GPS untuk melihat cuaca terkini
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
 
   return (
     <div className="mb-4 rounded-xl bg-white shadow-sm">
       <div className="flex items-center gap-3 px-4 py-2.5">
-        <span className="text-3xl shrink-0">{getEmoji(data.weatherCode)}</span>
+        <span className="text-3xl shrink-0">
+          {getWeatherEmoji(data.weatherCode)}
+        </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2">
             <span className="text-xl font-bold text-[#1a1a1a]">
@@ -132,63 +163,19 @@ export default function WeatherCard() {
             </span>
           </div>
           <div className="flex items-center gap-3 text-xs text-[#737373]">
-            <span className="truncate">
-              📍 {data.location}
-            </span>
-            {usingGps && (
-              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-zinc-100">
-                GPS
-              </span>
-            )}
-            {data._fallback && !usingGps && (
-              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-zinc-100">
-                Predetermined
-              </span>
-            )}
+            <span className="truncate">📍 {data.location}</span>
           </div>
         </div>
-        <div className="shrink-0 text-right relative">
-          <button
-            onClick={refresh}
-            disabled={refreshing}
-            className="mb-1 p-1 rounded hover:bg-zinc-100 transition-colors disabled:opacity-50 ml-auto"
-            title="Refresh cuaca"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#737373"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className={`${refreshing ? "animate-spin" : ""}`}
-            >
-              <polyline points="23 4 23 10 17 10" />
-              <polyline points="1 20 1 14 7 14" />
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-            </svg>
-          </button>
+        <div className="shrink-0 text-right">
           <div className="text-xs text-[#737373]">💧 {data.humidity}%</div>
           <div className="text-xs text-[#737373]">💨 {data.windSpeed} km/h</div>
-          {data._errors.length > 0 && (
-            <button
-              onClick={() => setShowDbg(!showDbg)}
-              className="mt-1 text-[10px] text-zinc-400 hover:text-zinc-600 underline"
-            >
-              [i] detail
-            </button>
-          )}
-          {showDbg && (
-            <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-zinc-200 rounded-lg shadow-lg p-2.5 text-[11px] text-red-600 z-10 space-y-1">
-              {data._errors.map((e, i) => (
-                <div key={i}>⚠ {e}</div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
+      {WEATHER_BASE && (
+        <p className="px-4 pb-1.5 text-right text-[10px] text-[#737373] opacity-50">
+          Sumber: {new URL(WEATHER_BASE).hostname.split(".").slice(-2).join(".")}
+        </p>
+      )}
     </div>
   );
 }

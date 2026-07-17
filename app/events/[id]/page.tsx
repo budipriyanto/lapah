@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import type { Metadata } from "next";
-import DetailClient from "./DetailClient";
+import EventDetailClient from "./EventDetailClient";
 
 export async function generateMetadata({
   params,
@@ -10,25 +10,25 @@ export async function generateMetadata({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [destRes, imgRes] = await Promise.all([
-    supabase.from("destinations").select("*").eq("id", id).single(),
+  const [evtRes, imgRes] = await Promise.all([
+    supabase.from("events").select("*").eq("id", id).single(),
     supabase
-      .from("destination_images")
+      .from("event_images")
       .select("image_url")
-      .eq("destination_id", id)
+      .eq("event_id", id)
       .eq("is_hero", true)
       .limit(1),
   ]);
 
-  const dest = destRes.data as { title: string; description?: string | null; category: string } | null;
+  const evt = evtRes.data as { title: string; description?: string | null } | null;
   const ogImage = (imgRes.data as { image_url: string }[] | null)?.[0]?.image_url;
 
-  if (!dest) {
-    return { title: "Destinasi tidak ditemukan" };
+  if (!evt) {
+    return { title: "Event tidak ditemukan" };
   }
 
-  const title = dest.title;
-  const description = dest.description?.slice(0, 160) ?? `Destinasi ${dest.category} di Lampung Timur`;
+  const title = evt.title;
+  const description = evt.description?.slice(0, 160) ?? "Event di Lampung Timur";
 
   return {
     title,
@@ -52,5 +52,5 @@ export async function generateMetadata({
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <DetailClient id={id} />;
+  return <EventDetailClient id={id} />;
 }

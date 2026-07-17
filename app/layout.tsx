@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SearchProvider } from "@/contexts/SearchContext";
+import { AuthProvider } from "@/contexts/AuthContext";
+import QueryProvider from "@/components/QueryProvider";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import Footer from "@/components/Footer";
@@ -47,16 +49,21 @@ export default function RootLayout({
   return (
     <html
       lang="id"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col pb-20">
+      <body className="min-h-full flex flex-col pb-[calc(20px+env(safe-area-inset-bottom))]">
         <SearchProvider>
-          <Navbar />
-          <main className="flex-1">{children}</main>
-          <Footer />
-          <BottomNav />
-          <ScrollToTop />
-          <ServiceWorkerRegister />
+          <AuthProvider>
+            <QueryProvider>
+              <Navbar />
+              <main className="flex-1">{children}</main>
+              <Footer />
+              <BottomNav />
+              <ScrollToTop />
+              <ServiceWorkerRegister />
+            </QueryProvider>
+          </AuthProvider>
         </SearchProvider>
       </body>
     </html>

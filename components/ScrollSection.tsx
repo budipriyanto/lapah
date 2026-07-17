@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 
 export default function ScrollSection({
   sectionRef,
   title,
+  href,
   children,
 }: {
   sectionRef?: React.RefObject<HTMLDivElement | null>;
   title: string;
+  href?: string;
   children: ReactNode;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -37,9 +40,17 @@ export default function ScrollSection({
   return (
     <section ref={sectionRef} className="mb-8">
       <div className="mb-3 px-4 sm:px-6">
-        <div className="mx-auto max-w-5xl">
-          <h2 className="text-lg font-bold text-[#1a1a1a]">{title}</h2>
-        </div>
+          <div className="mx-auto max-w-5xl flex items-center justify-between">
+            <h2 className="text-lg font-bold text-[#1a1a1a]">{title}</h2>
+            {href && (
+              <Link
+                href={href}
+                className="text-xs font-medium text-[#0066cc] hover:underline"
+              >
+                Lihat Semua
+              </Link>
+            )}
+          </div>
       </div>
       <div className="px-4 sm:px-6">
         <div className="relative mx-auto max-w-5xl">

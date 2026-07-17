@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { useCallback } from "react";
 
 const DESTINASI_ICON = (active: boolean) => (
   <svg
@@ -34,6 +35,24 @@ const HOME_ICON = (active: boolean) => (
   </svg>
 );
 
+const PENGINAPAN_ICON = (active: boolean) => (
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={active ? "#0066cc" : "#737373"}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M2 4v16" />
+    <path d="M2 8h18a2 2 0 0 1 2 2v10" />
+    <path d="M2 17h20" />
+    <path d="M6 8v9" />
+  </svg>
+);
+
 const KULINER_ICON = (active: boolean) => (
   <svg
     width="20"
@@ -51,10 +70,30 @@ const KULINER_ICON = (active: boolean) => (
   </svg>
 );
 
+const EVENT_ICON = (active: boolean) => (
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={active ? "#0066cc" : "#737373"}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+    <line x1="16" y1="2" x2="16" y2="6" />
+    <line x1="8" y1="2" x2="8" y2="6" />
+    <line x1="3" y1="10" x2="21" y2="10" />
+  </svg>
+);
+
 function isActive(pathname: string, tab: string) {
   if (tab === "home") return pathname === "/";
   if (tab === "wisata") return pathname === "/wisata";
+  if (tab === "penginapan") return pathname === "/penginapan";
   if (tab === "kuliner") return pathname === "/kuliner";
+  if (tab === "events") return pathname === "/events";
   return false;
 }
 
@@ -62,11 +101,21 @@ export default function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
 
+  const navigate = useCallback((href: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    router.push(href);
+  }, [router]);
+
+  const prefetch = useCallback((href: string) => () => {
+    router.prefetch(href);
+  }, [router]);
+
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-zinc-100 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]">
+    <nav className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-zinc-100 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] pb-[env(safe-area-inset-bottom)]">
       <div className="mx-auto max-w-lg flex items-start justify-around h-[68px] px-6 pt-2">
         <button
-          onClick={() => router.push("/wisata")}
+          onClick={navigate("/wisata")}
+          onMouseEnter={prefetch("/wisata")}
           className="flex flex-col items-center gap-1 pt-1"
         >
           {DESTINASI_ICON(isActive(pathname, "wisata"))}
@@ -81,9 +130,27 @@ export default function BottomNav() {
           </span>
         </button>
 
+        <button
+          onClick={navigate("/penginapan")}
+          onMouseEnter={prefetch("/penginapan")}
+          className="flex flex-col items-center gap-1 pt-1"
+        >
+          {PENGINAPAN_ICON(isActive(pathname, "penginapan"))}
+          <span
+            className={`text-[10px] leading-none ${
+              isActive(pathname, "penginapan")
+                ? "text-[#0066cc] font-medium"
+                : "text-[#737373]"
+            }`}
+          >
+            Penginapan
+          </span>
+        </button>
+
         <div className="flex flex-col items-center -mt-4">
           <button
-            onClick={() => router.push("/")}
+            onClick={navigate("/")}
+            onMouseEnter={prefetch("/")}
             className="w-12 h-12 rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.12)] flex items-center justify-center"
           >
             {HOME_ICON(isActive(pathname, "home"))}
@@ -100,7 +167,8 @@ export default function BottomNav() {
         </div>
 
         <button
-          onClick={() => router.push("/kuliner")}
+          onClick={navigate("/kuliner")}
+          onMouseEnter={prefetch("/kuliner")}
           className="flex flex-col items-center gap-1 pt-1"
         >
           {KULINER_ICON(isActive(pathname, "kuliner"))}
@@ -112,6 +180,23 @@ export default function BottomNav() {
             }`}
           >
             Kuliner
+          </span>
+        </button>
+
+        <button
+          onClick={navigate("/events")}
+          onMouseEnter={prefetch("/events")}
+          className="flex flex-col items-center gap-1 pt-1"
+        >
+          {EVENT_ICON(isActive(pathname, "events"))}
+          <span
+            className={`text-[10px] leading-none ${
+              isActive(pathname, "events")
+                ? "text-[#0066cc] font-medium"
+                : "text-[#737373]"
+            }`}
+          >
+            Event
           </span>
         </button>
       </div>

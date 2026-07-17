@@ -2,11 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 import { useSearchContext } from "@/contexts/SearchContext";
 
 export default function Navbar() {
   const pathname = usePathname();
-  const showSearch = pathname === "/" || pathname === "/wisata" || pathname === "/kuliner";
+  const { user, role, signOut } = useAuth();
+  const showSearch =
+    pathname === "/" ||
+    pathname === "/wisata" ||
+    pathname === "/kuliner" ||
+    pathname === "/penginapan" ||
+    pathname === "/events";
   const { inputValue, setInputValue } = useSearchContext();
 
   return (
@@ -44,6 +51,40 @@ export default function Navbar() {
             </svg>
           </div>
         )}
+
+        <div className="shrink-0">
+          {user ? (
+            <div className="flex items-center gap-2">
+              {role === "admin" && (
+                <Link
+                  href="/admin"
+                  className="rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-[#737373] transition-colors hover:bg-zinc-100"
+                >
+                  Admin
+                </Link>
+              )}
+              <Link
+                href="/profile"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0066cc] text-xs font-medium text-white"
+              >
+                {user.email?.charAt(0).toUpperCase() || "U"}
+              </Link>
+              <button
+                onClick={signOut}
+                className="text-xs text-[#737373] hover:text-[#1a1a1a] transition-colors"
+              >
+                Keluar
+              </button>
+            </div>
+          ) : (
+            <Link
+              href="/auth/login"
+              className="rounded-lg bg-[#0066cc] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#0052a3]"
+            >
+              Masuk
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );

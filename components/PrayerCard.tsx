@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { reverseGeocode } from "@/utils/geocode";
+
+const PRAYER_BASE = process.env.NEXT_PUBLIC_PRAYER_BASE;
 
 interface PrayerTime {
   subuh: string;
@@ -8,10 +11,50 @@ interface PrayerTime {
   ashar: string;
   maghrib: string;
   isya: string;
-  tanggal: string;
 }
 
-const API = process.env.NEXT_PUBLIC_API_PRAYER;
+interface DateInfo {
+  gregorian: string;
+  hijri: string;
+  weekday: string;
+}
+
+const DAYS_ID: Record<string, string> = {
+  Monday: "Senin",
+  Tuesday: "Selasa",
+  Wednesday: "Rabu",
+  Thursday: "Kamis",
+  Friday: "Jumat",
+  Saturday: "Sabtu",
+  Sunday: "Minggu",
+};
+
+const MONTHS_ID: Record<string, string> = {
+  Jan: "Januari",
+  Januari: "Januari",
+  Feb: "Februari",
+  Februari: "Februari",
+  Mar: "Maret",
+  Maret: "Maret",
+  Apr: "April",
+  April: "April",
+  May: "Mei",
+  Mei: "Mei",
+  Jun: "Juni",
+  Juni: "Juni",
+  Jul: "Juli",
+  Juli: "Juli",
+  Aug: "Agustus",
+  Agustus: "Agustus",
+  Sep: "September",
+  September: "September",
+  Oct: "Oktober",
+  Oktober: "Oktober",
+  Nov: "November",
+  November: "November",
+  Dec: "Desember",
+  Desember: "Desember",
+};
 
 const PRAYERS = [
   { key: "subuh", label: "Subuh" },
@@ -20,8 +63,6 @@ const PRAYERS = [
   { key: "maghrib", label: "Maghrib" },
   { key: "isya", label: "Isya" },
 ] as const;
-
-const DEFAULT_CITY = { id: 1005, name: "Lampung Timur" };
 
 function getCurrentPrayer(prayers: PrayerTime): string | null {
   const now = new Date();
@@ -64,73 +105,56 @@ function PrayerSkeleton() {
 
 export default function PrayerCard() {
   const [prayer, setPrayer] = useState<PrayerTime | null>(null);
+  const [dateInfo, setDateInfo] = useState<DateInfo | null>(null);
   const [error, setError] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [cityName, setCityName] = useState(DEFAULT_CITY.name);
-  const [usingGps, setUsingGps] = useState(false);
-  const cityIdRef = useRef(DEFAULT_CITY.id);
+  const [locationName, setLocationName] = useState("");
+  const [gpsStatus, setGpsStatus] = useState<"idle" | "locating" | "done" | "denied">("idle");
+  const [loading, setLoading] = useState(false);
 
-  async function findCityId(lat: number, lon: number): Promise<number> {
-    try {
-      const geoRes = await fetch(
-        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=id`
-      );
-      const geo = await geoRes.json();
-      const city = geo.city || geo.locality || geo.principalSubdivision;
-      if (!city) return DEFAULT_CITY.id;
-
-      const searchRes = await fetch(
-        `${API}/sholat/kota/cari/${encodeURIComponent(city)}`
-      );
-      const search = await searchRes.json();
-      if (search.status && search.data && search.data.length > 0) {
-        setCityName(search.data[0].lokasi);
-        return Number(search.data[0].id);
-      }
-
-      const region = geo.principalSubdivision;
-      if (region) {
-        const regionRes = await fetch(
-          `${API}/sholat/kota/cari/${encodeURIComponent(region)}`
-        );
-        const regionSearch = await regionRes.json();
-        if (regionSearch.status && regionSearch.data && regionSearch.data.length > 0) {
-          setCityName(regionSearch.data[0].lokasi);
-          return Number(regionSearch.data[0].id);
-        }
-      }
-    } catch {
-      // fallback
+  const fetchPrayer = useCallback(async (lat: number, lon: number) => {
+    if (!PRAYER_BASE) {
+      setError(true);
+      setLoading(false);
+      return;
     }
-    return DEFAULT_CITY.id;
-  }
 
-  const fetchPrayer = useCallback(async (cityId?: number) => {
     setError(false);
-    const id = cityId ?? cityIdRef.current;
-    cityIdRef.current = id;
-
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
 
     try {
+      const geo = await reverseGeocode(lat, lon);
+      setLocationName(
+        geo ? [geo.city, geo.region].filter(Boolean).join(", ") : ""
+      );
+
       const res = await fetch(
-        `${API}/sholat/jadwal/${id}/${year}/${month}/${day}`
+        `${PRAYER_BASE}/timings?latitude=${lat}&longitude=${lon}&method=11`
       );
       const json = await res.json();
-      if (json.status && json.data?.jadwal) {
-        const j = json.data.jadwal;
+
+      if (json.code === 200 && json.data?.timings) {
+        const t = json.data.timings;
         setPrayer({
-          subuh: j.subuh,
-          dzuhur: j.dzuhur,
-          ashar: j.ashar,
-          maghrib: j.maghrib,
-          isya: j.isya,
-          tanggal: j.tanggal,
+          subuh: t.Fajr,
+          dzuhur: t.Dhuhr,
+          ashar: t.Asr,
+          maghrib: t.Maghrib,
+          isya: t.Isha,
         });
+
+        const d = json.data.date;
+        if (d) {
+          const g = d.gregorian;
+          const dayNum = g.day;
+          const monthEn = g.month?.en ?? g.month?.number ?? "";
+          const year = g.year;
+          setDateInfo({
+            gregorian: `${dayNum} ${MONTHS_ID[monthEn] || monthEn} ${year}`,
+            hijri: d.hijri
+              ? `${d.hijri.day} ${d.hijri.month.en} ${d.hijri.year}`
+              : "",
+            weekday: DAYS_ID[g?.weekday?.en] || g?.weekday?.en || "",
+          });
+        }
       } else {
         setError(true);
       }
@@ -143,125 +167,113 @@ export default function PrayerCard() {
 
   useEffect(() => {
     const id = setTimeout(() => {
-      fetchPrayer(DEFAULT_CITY.id);
-
-      if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          async (pos) => {
-            setUsingGps(true);
-            const foundId = await findCityId(pos.coords.latitude, pos.coords.longitude);
-            fetchPrayer(foundId);
-          },
-          () => {},
-          { timeout: 5000, enableHighAccuracy: false },
-        );
+      if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
+        setGpsStatus("denied");
+        return;
       }
-    }, 0);
 
+      setGpsStatus("locating");
+      setLoading(true);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setGpsStatus("done");
+          fetchPrayer(pos.coords.latitude, pos.coords.longitude);
+        },
+        () => {
+          setGpsStatus("denied");
+          setLoading(false);
+        },
+        { timeout: 5000, enableHighAccuracy: false }
+      );
+    }, 0);
     return () => clearTimeout(id);
   }, [fetchPrayer]);
 
-  async function refresh() {
-    setRefreshing(true);
-    setError(false);
-
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          setUsingGps(true);
-          const foundId = await findCityId(pos.coords.latitude, pos.coords.longitude);
-          await fetchPrayer(foundId);
-          setRefreshing(false);
-        },
-        async () => {
-          setUsingGps(false);
-          await fetchPrayer(DEFAULT_CITY.id);
-          setRefreshing(false);
-        },
-        { timeout: 5000, enableHighAccuracy: false },
-      );
-    } else {
-      setUsingGps(false);
-      await fetchPrayer(DEFAULT_CITY.id);
-      setRefreshing(false);
-    }
-  }
-
   if (loading) return <PrayerSkeleton />;
 
-  const currentPrayer = prayer ? getCurrentPrayer(prayer) : null;
+  if (gpsStatus === "denied" && !prayer) {
+    return (
+      <div className="mb-6 rounded-xl bg-white p-4 shadow-sm sm:p-5">
+        <p className="mb-2 text-sm font-semibold text-[#1a1a1a]">
+          🕌 Jadwal Sholat
+        </p>
+        <p className="text-center text-xs text-[#737373]">
+          Aktifkan GPS untuk melihat jadwal sholat
+        </p>
+      </div>
+    );
+  }
+
+  if (error && !prayer) {
+    return (
+      <div className="mb-6 rounded-xl bg-white p-4 shadow-sm sm:p-5">
+        <p className="mb-2 text-sm font-semibold text-[#1a1a1a]">
+          🕌 Jadwal Sholat
+        </p>
+        <p className="text-center text-xs text-red-500">
+          Gagal memuat jadwal sholat
+        </p>
+      </div>
+    );
+  }
+
+  if (!prayer) return null;
+
+  const currentPrayer = getCurrentPrayer(prayer);
+
+  const subtitle = [
+    locationName,
+    dateInfo?.hijri ? `${dateInfo.hijri} H` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <div className="mb-6 rounded-xl bg-white p-4 shadow-sm sm:p-5">
-      {/* Header */}
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-[#1a1a1a]">
-            🕌 Jadwal Sholat
-          </h3>
-          <p className="text-xs text-[#737373]">
-            {cityName}{error ? "" : prayer ? ` · ${prayer.tanggal}` : ""}
-            {usingGps && (
-              <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-zinc-100">
-                GPS
-              </span>
-            )}
+    <div className="mb-6 rounded-xl bg-white shadow-sm">
+      <div className="px-4 pt-3.5 pb-2">
+        {dateInfo && (
+          <p className="text-sm font-semibold text-[#1a1a1a]">
+            🕌 {dateInfo.weekday}, {dateInfo.gregorian}
           </p>
-        </div>
-        <button
-          onClick={refresh}
-          disabled={refreshing}
-          className="p-1 rounded hover:bg-zinc-100 transition-colors disabled:opacity-50"
-          title="Refresh jadwal"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#737373"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={refreshing ? "animate-spin" : ""}
-          >
-            <polyline points="23 4 23 10 17 10" />
-            <polyline points="1 20 1 14 7 14" />
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-          </svg>
-        </button>
+        )}
+        {subtitle && (
+          <p className="mt-0.5 text-[11px] text-[#737373]">📍 {subtitle}</p>
+        )}
       </div>
 
-      {/* Error */}
       {error && (
         <p className="mb-3 text-xs text-red-500">
           Gagal memuat jadwal sholat
         </p>
       )}
 
-      {/* Horizontal row - 5 columns */}
-      <div className="grid grid-cols-5 gap-1.5">
+      <div className="grid grid-cols-5 gap-1 px-4 pb-2">
         {PRAYERS.map((p) => {
           const isActive = currentPrayer === p.key;
-          const time = prayer ? prayer[p.key as keyof PrayerTime] : "--:--";
+          const time = prayer[p.key as keyof PrayerTime];
 
           return (
             <div
               key={p.key}
-              className={`rounded-lg px-2 py-2.5 text-center transition-colors ${
+              className={`rounded-lg px-1 py-2 text-center transition-colors ${
                 isActive
                   ? "bg-[#0066cc] text-white shadow-sm ring-2 ring-[#0066cc]"
                   : "bg-zinc-50 text-[#1a1a1a]"
               }`}
             >
-              <p className="text-[11px] font-medium leading-tight opacity-70">
+              <p className="text-[10px] font-medium leading-tight opacity-70">
                 {p.label}
               </p>
-              <p className="mt-0.5 text-sm font-bold leading-tight">{time}</p>
+              <p className="mt-0.5 text-xs font-bold leading-tight">{time}</p>
             </div>
           );
         })}
       </div>
+      {PRAYER_BASE && (
+        <p className="px-4 pb-1.5 text-right text-[10px] text-[#737373] opacity-50">
+          Sumber: {new URL(PRAYER_BASE).hostname.split(".").slice(-2).join(".")}
+        </p>
+      )}
     </div>
   );
 }

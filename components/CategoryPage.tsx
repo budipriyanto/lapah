@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { createClient } from "@/utils/supabase/client";
-import type { Destination, DestinationImage } from "@/utils/supabase/types";
+import { useMemo, useState } from "react";
+import type { DestinationImage } from "@/utils/supabase/types";
 import DestinationCard from "@/components/DestinationCard";
-import WeatherCard from "@/components/WeatherCard";
-import PrayerCard from "@/components/PrayerCard";
+import PageHeader from "@/components/PageHeader";
+import { useDestinationsByCategory, useDestinationImages } from "@/hooks/useSupabaseQuery";
 import { useSearchContext } from "@/contexts/SearchContext";
 import { useBookmarks } from "@/hooks/useBookmarks";
 
-function filterBySearch(dest: Destination, q: string) {
+function filterBySearch(dest: { title: string; location?: string | null }, q: string) {
   if (!q) return true;
   const query = q.toLowerCase();
   return (
@@ -21,32 +20,16 @@ function filterBySearch(dest: Destination, q: string) {
 export default function CategoryPage({
   category,
 }: {
-  category: "wisata" | "kuliner";
+  category: "wisata" | "kuliner" | "penginapan";
 }) {
   const { query } = useSearchContext();
-  const [destinations, setDestinations] = useState<Destination[]>([]);
-  const [images, setImages] = useState<DestinationImage[]>([]);
+  const { data: destinations, isLoading: destLoading } = useDestinationsByCategory(category);
+  const { data: images } = useDestinationImages();
   const [activeSubcategory, setActiveSubcategory] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const { isBookmarked } = useBookmarks();
 
-  useEffect(() => {
-    const supabase = createClient();
-    Promise.all([
-      supabase
-        .from("destinations")
-        .select("*")
-        .eq("category", category)
-        .order("title"),
-      supabase.from("destination_images").select("*").order("image_order"),
-    ]).then(([destResult, imgResult]) => {
-      if (destResult.data) setDestinations(destResult.data);
-      if (imgResult.data) setImages(imgResult.data);
-      setLoading(false);
-    });
-  }, [category]);
-
   const imagesByDestination = useMemo(() => {
+    if (!images) return new Map<string, DestinationImage[]>();
     const map = new Map<string, DestinationImage[]>();
     for (const img of images) {
       const existing = map.get(img.destination_id);
@@ -60,6 +43,7 @@ export default function CategoryPage({
   }, [images]);
 
   const subcategories = useMemo(() => {
+    if (!destinations) return [];
     const set = new Set<string>();
     for (const d of destinations) {
       if (d.subcategory) set.add(d.subcategory);
@@ -69,7 +53,7 @@ export default function CategoryPage({
 
   const filtered = useMemo(
     () =>
-      destinations.filter(
+      (destinations ?? []).filter(
         (d) =>
           filterBySearch(d, query) &&
           (activeSubcategory === null || d.subcategory === activeSubcategory)
@@ -77,16 +61,17 @@ export default function CategoryPage({
     [destinations, query, activeSubcategory]
   );
 
-  const title = category === "wisata" ? "Wisata" : "Kuliner";
+  const titles: Record<string, string> = { wisata: "Wisata", kuliner: "Kuliner", penginapan: "Penginapan" };
+  const colors: Record<string, string> = { wisata: "blue", kuliner: "orange", penginapan: "rose" };
+  const icons: Record<string, string> = { wisata: "🏖️", kuliner: "🍜", penginapan: "🛏️" };
+  const title = titles[category];
+  const color = colors[category] as "blue" | "orange" | "rose";
+  const icon = icons[category];
 
-  if (loading) {
+  if (destLoading) {
     return (
       <div className="py-6">
-        <div className="px-4 sm:px-6">
-          <div className="mx-auto max-w-5xl">
-            <div className="mb-6 h-14 animate-pulse rounded-xl bg-white shadow-sm" />
-          </div>
-        </div>
+        <PageHeader title={title} color={color} icon={icon} />
         <div className="mb-6 px-4 sm:px-6">
           <div className="mx-auto max-w-5xl">
             <div className="flex gap-2">
@@ -115,17 +100,10 @@ export default function CategoryPage({
 
   return (
     <div className="py-6">
-      <div className="px-4 sm:px-6">
+      <PageHeader title={title} color={color} icon={icon} />
+      <div className="mb-6 px-4 sm:px-6">
         <div className="mx-auto max-w-5xl">
-          <WeatherCard />
-          <PrayerCard />
-        </div>
-      </div>
-
-      {/* Subcategories */}
-      {subcategories.length > 0 && (
-        <div className="mb-6 px-4 sm:px-6">
-          <div className="mx-auto max-w-5xl">
+          {subcategories.length > 0 && (
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
               <button
                 onClick={() => setActiveSubcategory(null)}
@@ -151,9 +129,9 @@ export default function CategoryPage({
                 </button>
               ))}
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
 
       {filtered.length === 0 ? (
         <div className="px-4 sm:px-6">

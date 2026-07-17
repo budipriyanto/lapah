@@ -1,16 +1,19 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { createClient } from "@/utils/supabase/client";
-import type { Destination, DestinationImage } from "@/utils/supabase/types";
+import { useMemo } from "react";
+import type { DestinationImage, EventImage } from "@/utils/supabase/types";
 import DestinationCard from "@/components/DestinationCard";
+import EventCard from "@/components/EventCard";
 import ScrollSection from "@/components/ScrollSection";
 import WeatherCard from "@/components/WeatherCard";
 import PrayerCard from "@/components/PrayerCard";
+import { useAllData } from "@/hooks/useSupabaseQuery";
 import { useSearchContext } from "@/contexts/SearchContext";
 import { useBookmarks } from "@/hooks/useBookmarks";
 
-function filterBySearch(dest: Destination, q: string) {
+const HOME_LIMIT = 10;
+
+function filterBySearch(dest: { title: string; location?: string | null }, q: string) {
   if (!q) return true;
   const query = q.toLowerCase();
   return (
@@ -19,48 +22,15 @@ function filterBySearch(dest: Destination, q: string) {
   );
 }
 
-function SectionSkeleton() {
-  return (
-    <div className="px-4 sm:px-6">
-      <div className="mx-auto max-w-5xl">
-        <div className="flex gap-3 overflow-hidden">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="w-56 shrink-0 animate-pulse rounded-xl bg-white shadow-sm">
-              <div className="aspect-[3/2] rounded-t-xl bg-zinc-200" />
-              <div className="space-y-1.5 p-2.5">
-                <div className="h-3 w-3/4 rounded bg-zinc-200" />
-                <div className="h-2.5 w-1/2 rounded bg-zinc-200" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ExploreContent() {
   const { query } = useSearchContext();
-  const [destinations, setDestinations] = useState<Destination[]>([]);
-  const [images, setImages] = useState<DestinationImage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading } = useAllData();
   const { isBookmarked } = useBookmarks();
 
-  useEffect(() => {
-    const supabase = createClient();
-    Promise.all([
-      supabase.from("destinations").select("*").order("title"),
-      supabase.from("destination_images").select("*").order("image_order"),
-    ]).then(([destResult, imgResult]) => {
-      if (destResult.data) setDestinations(destResult.data);
-      if (imgResult.data) setImages(imgResult.data);
-      setLoading(false);
-    });
-  }, []);
-
   const imagesByDestination = useMemo(() => {
+    if (!data) return new Map<string, DestinationImage[]>();
     const map = new Map<string, DestinationImage[]>();
-    for (const img of images) {
+    for (const img of data.images) {
       const existing = map.get(img.destination_id);
       if (existing) {
         existing.push(img);
@@ -69,53 +39,83 @@ function ExploreContent() {
       }
     }
     return map;
-  }, [images]);
+  }, [data]);
 
-  const wisataDestinations = useMemo(
-    () => destinations.filter((d) => d.category === "wisata"),
-    [destinations]
+  const eventImagesByEvent = useMemo(() => {
+    if (!data) return new Map<string, EventImage[]>();
+    const map = new Map<string, EventImage[]>();
+    for (const img of data.eventImages) {
+      const existing = map.get(img.event_id);
+      if (existing) {
+        existing.push(img);
+      } else {
+        map.set(img.event_id, [img]);
+      }
+    }
+    return map;
+  }, [data]);
+
+  const wisataList = useMemo(
+    () => (data?.destinations ?? []).filter((d) => d.category === "wisata").slice(0, HOME_LIMIT),
+    [data]
   );
 
-  const kulinerDestinations = useMemo(
-    () => destinations.filter((d) => d.category === "kuliner"),
-    [destinations]
+  const kulinerList = useMemo(
+    () => (data?.destinations ?? []).filter((d) => d.category === "kuliner").slice(0, HOME_LIMIT),
+    [data]
+  );
+
+  const penginapanList = useMemo(
+    () => (data?.destinations ?? []).filter((d) => d.category === "penginapan").slice(0, HOME_LIMIT),
+    [data]
   );
 
   const filteredWisata = useMemo(
-    () => wisataDestinations.filter((d) => filterBySearch(d, query)),
-    [wisataDestinations, query]
+    () => wisataList.filter((d) => filterBySearch(d, query)),
+    [wisataList, query]
   );
 
   const filteredKuliner = useMemo(
-    () => kulinerDestinations.filter((d) => filterBySearch(d, query)),
-    [kulinerDestinations, query]
+    () => kulinerList.filter((d) => filterBySearch(d, query)),
+    [kulinerList, query]
   );
 
-  const hasResults = filteredWisata.length > 0 || filteredKuliner.length > 0;
+  const filteredPenginapan = useMemo(
+    () => penginapanList.filter((d) => filterBySearch(d, query)),
+    [penginapanList, query]
+  );
 
-  if (loading) {
+  const eventsList = useMemo(
+    () => (data?.events ?? []).slice(0, HOME_LIMIT),
+    [data]
+  );
+
+  const hasResults = filteredWisata.length > 0 || filteredKuliner.length > 0 || filteredPenginapan.length > 0;
+
+  if (isLoading) {
     return (
       <div className="py-6">
-      <div className="px-4 sm:px-6">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-6 h-14 animate-pulse rounded-xl bg-white shadow-sm" />
+        <div className="px-4 sm:px-6">
+          <div className="mx-auto max-w-5xl space-y-3">
+            <div className="h-20 animate-pulse rounded-xl bg-white shadow-sm" />
+            <div className="h-20 animate-pulse rounded-xl bg-white shadow-sm" />
+          </div>
         </div>
-      </div>
-        <div className="mb-6">
-          <div className="mb-3 px-4 sm:px-6">
-            <div className="mx-auto max-w-5xl">
-              <div className="h-5 w-16 rounded bg-zinc-200" />
+        <div className="mt-6 px-4 sm:px-6">
+          <div className="mx-auto max-w-5xl">
+            <div className="mb-3 h-5 w-20 rounded bg-zinc-200" />
+            <div className="flex gap-3 overflow-hidden">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="w-48 shrink-0 animate-pulse rounded-xl bg-white shadow-sm">
+                  <div className="aspect-[3/2] rounded-t-xl bg-zinc-200" />
+                  <div className="space-y-1.5 p-2.5">
+                    <div className="h-3 w-3/4 rounded bg-zinc-200" />
+                    <div className="h-2.5 w-1/2 rounded bg-zinc-200" />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-          <SectionSkeleton />
-        </div>
-        <div>
-          <div className="mb-3 px-4 sm:px-6">
-            <div className="mx-auto max-w-5xl">
-              <div className="h-5 w-16 rounded bg-zinc-200" />
-            </div>
-          </div>
-          <SectionSkeleton />
         </div>
       </div>
     );
@@ -123,7 +123,6 @@ function ExploreContent() {
 
   return (
     <div className="py-6">
-      {/* Weather */}
       <div className="px-4 sm:px-6">
         <div className="mx-auto max-w-5xl">
           <WeatherCard />
@@ -142,9 +141,8 @@ function ExploreContent() {
         </div>
       ) : (
         <>
-          {/* Wisata */}
           {filteredWisata.length > 0 && (
-            <ScrollSection title="Wisata">
+            <ScrollSection title="Wisata" href="/wisata">
               {filteredWisata.map((dest) => (
                 <DestinationCard
                   key={dest.id}
@@ -157,15 +155,41 @@ function ExploreContent() {
             </ScrollSection>
           )}
 
-          {/* Kuliner */}
           {filteredKuliner.length > 0 && (
-            <ScrollSection title="Kuliner">
+            <ScrollSection title="Kuliner" href="/kuliner">
               {filteredKuliner.map((dest) => (
                 <DestinationCard
                   key={dest.id}
                   destination={dest}
                   images={imagesByDestination.get(dest.id) ?? []}
                   isBookmarked={isBookmarked(dest.id)}
+                  compact
+                />
+              ))}
+            </ScrollSection>
+          )}
+
+          {filteredPenginapan.length > 0 && (
+            <ScrollSection title="Penginapan" href="/penginapan">
+              {filteredPenginapan.map((dest) => (
+                <DestinationCard
+                  key={dest.id}
+                  destination={dest}
+                  images={imagesByDestination.get(dest.id) ?? []}
+                  isBookmarked={isBookmarked(dest.id)}
+                  compact
+                />
+              ))}
+            </ScrollSection>
+          )}
+
+          {!query && eventsList.length > 0 && !isLoading && (
+            <ScrollSection title="Event" href="/events">
+              {eventsList.map((evt) => (
+                <EventCard
+                  key={evt.id}
+                  event={evt}
+                  images={eventImagesByEvent.get(evt.id) ?? []}
                   compact
                 />
               ))}

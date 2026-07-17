@@ -1,21 +1,23 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 const STORAGE_KEY = "lapah-bookmarks";
 
-function getInitialBookmarks(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
 export function useBookmarks() {
-  const [bookmarks, setBookmarks] = useState<string[]>(getInitialBookmarks);
+  const [bookmarks, setBookmarks] = useState<string[]>([]);
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) setBookmarks(JSON.parse(stored));
+      } catch {
+        // ignore
+      }
+    }, 0);
+    return () => clearTimeout(id);
+  }, []);
 
   const isBookmarked = useCallback(
     (id: string) => bookmarks.includes(id),
