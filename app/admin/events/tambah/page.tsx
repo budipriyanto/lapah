@@ -90,6 +90,11 @@ export default function TambahEvent() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <Input label="Judul *" value={form.title} onChange={(v) => setForm((f) => ({ ...f, title: v }))} required />
+          <div>
+            <label className="mb-1 block text-sm font-medium text-[#1a1a1a]">Slug</label>
+            <input type="text" value={slugify(form.title)} readOnly
+              className="w-full cursor-not-allowed rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-500 outline-none" />
+          </div>
           <Input label="Lokasi" value={form.location} onChange={(v) => setForm((f) => ({ ...f, location: v }))} />
           <Input label="Tanggal Mulai *" type="date" value={form.date_start} onChange={(v) => setForm((f) => ({ ...f, date_start: v }))} required />
           <Input label="Tanggal Selesai" type="date" value={form.date_end} onChange={(v) => setForm((f) => ({ ...f, date_end: v }))} />
