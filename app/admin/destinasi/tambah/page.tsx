@@ -163,6 +163,8 @@ export default function TambahDestinasi() {
                       setUploadMsg(null);
                       const fd = new FormData();
                       fd.append("file", file);
+                      fd.append("slug", slugify(form.title));
+                      fd.append("order", String(i));
                       try {
                         const res = await fetch("/api/upload", { method: "POST", body: fd });
                         const json = await res.json();

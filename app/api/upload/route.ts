@@ -43,7 +43,10 @@ export async function POST(req: NextRequest) {
   }
 
   const ext = file.name.split(".").pop() || "jpg";
-  const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+  const slug = (formData.get("slug") as string) || "untitled";
+  const order = (formData.get("order") as string) || "0";
+  const safeSlug = slug.replace(/[^a-z0-9-]/g, "").slice(0, 50) || "untitled";
+  const filename = `${safeSlug}-${order}-${Date.now()}.${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
   await dav.putFileContents(`/Lapah/${filename}`, buffer);
 
