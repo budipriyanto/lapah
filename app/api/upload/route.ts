@@ -1,3 +1,5 @@
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 import { createClient, type FileStat } from "webdav";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -9,17 +11,28 @@ interface PropEntry {
 }
 
 export async function POST(req: NextRequest) {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } },
+  );
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { data: role } = await supabase.from("user_roles").select("role").eq("id", user.id).single();
+  if (role?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
   const davUrl = process.env.NEXTCLOUD_URL!;
-  const user = process.env.NEXTCLOUD_USERNAME!;
+  const davUser = process.env.NEXTCLOUD_USERNAME!;
   const pass = process.env.NEXTCLOUD_PASSWORD!;
   const token = process.env.NEXTCLOUD_SHARE_TOKEN!;
 
   const dav = createClient(davUrl, {
-    username: user,
+    username: davUser,
     password: pass,
   });
 

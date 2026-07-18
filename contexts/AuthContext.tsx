@@ -81,7 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string,
     password: string,
   ): Promise<string | null> {
-    const { error } = await supabase.auth.signUp({ email, password });
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: `${siteUrl}/auth/callback` },
+    });
     if (error) return error.message;
     return null;
   }
