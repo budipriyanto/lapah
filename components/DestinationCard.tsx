@@ -111,7 +111,7 @@ export default function DestinationCard({
 
   return (
     <Link
-      href={`/destinasi/${destination.id}`}
+      href={`/destinasi/${destination.slug}`}
       className="group block overflow-hidden rounded-xl bg-white shadow-sm transition-all hover:shadow-md"
     >
       <div suppressHydrationWarning className="relative aspect-[4/3] overflow-hidden bg-zinc-100">
