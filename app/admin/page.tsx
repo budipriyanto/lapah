@@ -14,15 +14,15 @@ export default function AdminDashboard() {
       supabase.from("destinations").select("id", { count: "exact", head: true }).eq("category", "penginapan"),
       supabase.from("events").select("id", { count: "exact", head: true }),
       supabase.from("reviews").select("id", { count: "exact", head: true }),
-      supabase.from("user_roles").select("id", { count: "exact", head: true }),
-    ]).then(([w, k, p, e, u, ur]) => {
+      fetch("/api/users/count").then((r) => r.json()).then((d) => d.count ?? 0).catch(() => 0),
+    ]).then(([w, k, p, e, u, userCount]) => {
       setStats({
         wisata: w.count ?? 0,
         kuliner: k.count ?? 0,
         penginapan: p.count ?? 0,
         event: e.count ?? 0,
         ulasan: u.count ?? 0,
-        user: ur.count ?? 0,
+        user: userCount as number,
       });
     });
   }, []);

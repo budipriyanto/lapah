@@ -86,6 +86,14 @@ export default function LoginPage() {
           Daftar
         </Link>
       </p>
+      <p className="mt-2 text-center text-sm text-[#737373]">
+        <Link
+          href="/auth/lupa-password"
+          className="font-medium text-[#0066cc] hover:underline"
+        >
+          Lupa password?
+        </Link>
+      </p>
     </div>
   );
 }

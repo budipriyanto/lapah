@@ -28,6 +28,10 @@ export async function GET(request: NextRequest) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      const type = searchParams.get("type");
+      if (type === "recovery") {
+        return NextResponse.redirect(new URL("/auth/reset-password", request.url));
+      }
       return NextResponse.redirect(new URL(next, request.url));
     }
   }
