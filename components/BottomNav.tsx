@@ -196,7 +196,7 @@ export default function BottomNav() {
                 : "text-[#737373]"
             }`}
           >
-            Event
+            Acara
           </span>
         </button>
       </div>

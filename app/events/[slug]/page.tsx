@@ -39,13 +39,13 @@ export async function generateMetadata({
       type: "website",
       images: ogImage
         ? [{ url: ogImage, width: 640, height: 480, alt: title }]
-        : [{ url: "/icon.svg", width: 512, height: 512, alt: title }],
+        : [{ url: "/icon-512.png", width: 512, height: 512, alt: title }],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: ogImage ? [ogImage] : ["/icon.svg"],
+      images: ogImage ? [ogImage] : ["/icon-512.png"],
     },
   };
 }

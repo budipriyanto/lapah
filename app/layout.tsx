@@ -21,13 +21,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://lapah.vercel.app"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://lapah.vercel.app"),
   title: "Destinasi Wisata & Kuliner Lampung Timur",
   description:
     "Jelajahi destinasi wisata dan kuliner terbaik di Lampung Timur. Temukan rekomendasi tempat, ulasan, dan informasi lengkap.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon.svg",
+    icon: "/icon.ico",
+    apple: "/icon-192.png",
   },
   appleWebApp: {
     capable: true,

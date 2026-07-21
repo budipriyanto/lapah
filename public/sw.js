@@ -3,7 +3,7 @@ const CACHE_NAME = "lapah-v1";
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",
-  "/icon.svg",
+  "/icon.ico",
 ];
 
 self.addEventListener("install", (event) => {
