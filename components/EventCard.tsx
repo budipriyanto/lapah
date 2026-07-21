@@ -9,6 +9,7 @@ interface EventCardProps {
   event: Event;
   images: EventImage[];
   compact?: boolean;
+  priority?: boolean;
 }
 
 function formatDate(dateStr: string, endStr?: string | null) {
@@ -26,7 +27,7 @@ function getHeroImage(images: EventImage[]): string | null {
   return (hero ?? images[0])?.image_url ?? null;
 }
 
-export default function EventCard({ event, images, compact = false }: EventCardProps) {
+export default function EventCard({ event, images, compact = false, priority = false }: EventCardProps) {
   const heroUrl = useMemo(() => getHeroImage(images), [images]);
   const dateLabel = formatDate(event.date_start, event.date_end);
 
@@ -45,6 +46,7 @@ export default function EventCard({ event, images, compact = false }: EventCardP
             fill
             className="object-cover group-hover:scale-105 transition-transform duration-300"
             sizes={compact ? "224px" : "(max-width: 640px) 100vw, 50vw"}
+            priority={priority}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-[#0066cc]/10">

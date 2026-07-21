@@ -5,8 +5,19 @@ import { useEvents, useEventImages } from "@/hooks/useSupabaseQuery";
 import type { EventImage } from "@/utils/supabase/types";
 import EventCard from "@/components/EventCard";
 import PageHeader from "@/components/PageHeader";
+import { useSearchContext } from "@/contexts/SearchContext";
+
+function filterBySearch(evt: { title: string; location?: string | null }, q: string) {
+  if (!q) return true;
+  const query = q.toLowerCase();
+  return (
+    evt.title.toLowerCase().includes(query) ||
+    evt.location?.toLowerCase().includes(query)
+  );
+}
 
 export default function EventsPage() {
+  const { query } = useSearchContext();
   const { data: events, isLoading } = useEvents();
   const { data: images = [] } = useEventImages();
 
@@ -23,10 +34,15 @@ export default function EventsPage() {
     return map;
   }, [images]);
 
+  const filtered = useMemo(
+    () => (events ?? []).filter((e) => filterBySearch(e, query)),
+    [events, query]
+  );
+
   if (isLoading) {
     return (
       <div className="py-6">
-        <PageHeader title="Event" color="indigo" icon="📅" />
+        <PageHeader title="Acara" color="acara" icon="📅" />
         <div className="px-4 sm:px-6">
           <div className="mx-auto max-w-5xl grid grid-cols-2 gap-4">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -48,10 +64,24 @@ export default function EventsPage() {
   if (!events || events.length === 0) {
     return (
       <div className="py-6">
-        <PageHeader title="Event" color="indigo" icon="📅" />
+        <PageHeader title="Acara" color="acara" icon="📅" />
         <div className="px-4 sm:px-6">
           <div className="mx-auto max-w-5xl py-16 text-center text-[#737373]">
-            <p className="text-lg font-medium">Belum ada event</p>
+            <p className="text-lg font-medium">Belum ada acara</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (filtered.length === 0) {
+    return (
+      <div className="py-6">
+        <PageHeader title="Acara" color="acara" icon="📅" />
+        <div className="px-4 sm:px-6">
+          <div className="mx-auto max-w-5xl py-16 text-center text-[#737373]">
+            <p className="text-lg font-medium">Tidak ditemukan</p>
+            <p className="mt-1 text-sm">Coba ubah kata kunci pencarian</p>
           </div>
         </div>
       </div>
@@ -60,14 +90,15 @@ export default function EventsPage() {
 
   return (
     <div className="py-6">
-      <PageHeader title="Event" color="indigo" icon="📅" />
+      <PageHeader title="Acara" color="acara" icon="📅" />
       <div className="px-4 sm:px-6 pb-6">
         <div className="mx-auto max-w-5xl grid grid-cols-2 gap-4">
-          {events.map((evt) => (
+          {filtered.map((evt, i) => (
             <EventCard
               key={evt.id}
               event={evt}
               images={imagesByEvent.get(evt.id) ?? []}
+              priority={i < 4}
             />
           ))}
         </div>

@@ -10,6 +10,7 @@ interface DestinationCardProps {
   images: DestinationImage[];
   isBookmarked?: boolean;
   compact?: boolean;
+  priority?: boolean;
 }
 
 function getHeroImages(images: DestinationImage[]): string[] {
@@ -22,6 +23,7 @@ export default function DestinationCard({
   images,
   isBookmarked = false,
   compact = false,
+  priority = false,
 }: DestinationCardProps) {
   const heroImages = useMemo(() => getHeroImages(images), [images]);
   const [mounted, setMounted] = useState(false);
@@ -58,6 +60,7 @@ export default function DestinationCard({
                     i === imgIndex ? "opacity-100" : "opacity-0"
                   } group-hover:scale-105`}
                   sizes="224px"
+                  priority={priority}
                 />
               ))
             ) : (
@@ -67,6 +70,7 @@ export default function DestinationCard({
                 fill
                 className="object-cover group-hover:scale-105"
                 sizes="224px"
+                priority={priority}
               />
             )
           ) : (
@@ -76,6 +80,7 @@ export default function DestinationCard({
               fill
               className="object-cover"
               sizes="224px"
+              priority={priority}
             />
           )}
           {isBookmarked && (
@@ -127,6 +132,7 @@ export default function DestinationCard({
                   i === imgIndex ? "opacity-100" : "opacity-0"
                 } group-hover:scale-105`}
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                priority={priority}
               />
             ))
           ) : (
@@ -136,6 +142,7 @@ export default function DestinationCard({
               fill
               className="object-cover group-hover:scale-105"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              priority={priority}
             />
           )
         ) : (
@@ -145,6 +152,7 @@ export default function DestinationCard({
             fill
             className="object-cover"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            priority={priority}
           />
         )}
         {isBookmarked && (

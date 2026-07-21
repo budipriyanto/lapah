@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,7 +15,11 @@ export default function Navbar() {
     pathname === "/kuliner" ||
     pathname === "/penginapan" ||
     pathname === "/events";
-  const { inputValue, setInputValue } = useSearchContext();
+  const { inputValue, setInputValue, clearSearch } = useSearchContext();
+
+  useEffect(() => {
+    clearSearch();
+  }, [pathname]);
 
   return (
     <header className="sticky top-0 z-50 bg-[#fafafa]/80 backdrop-blur-md border-b border-zinc-100">

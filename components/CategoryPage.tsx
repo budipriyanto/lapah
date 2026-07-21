@@ -62,16 +62,14 @@ export default function CategoryPage({
   );
 
   const titles: Record<string, string> = { wisata: "Wisata", kuliner: "Kuliner", penginapan: "Penginapan" };
-  const colors: Record<string, string> = { wisata: "blue", kuliner: "orange", penginapan: "rose" };
   const icons: Record<string, string> = { wisata: "🏖️", kuliner: "🍜", penginapan: "🛏️" };
   const title = titles[category];
-  const color = colors[category] as "blue" | "orange" | "rose";
   const icon = icons[category];
 
   if (destLoading) {
     return (
       <div className="py-6">
-        <PageHeader title={title} color={color} icon={icon} />
+        <PageHeader title={title} color={category} icon={icon} />
         <div className="mb-6 px-4 sm:px-6">
           <div className="mx-auto max-w-5xl">
             <div className="flex gap-2">
@@ -100,7 +98,7 @@ export default function CategoryPage({
 
   return (
     <div className="py-6">
-      <PageHeader title={title} color={color} icon={icon} />
+      <PageHeader title={title} color={category} icon={icon} />
       <div className="mb-6 px-4 sm:px-6">
         <div className="mx-auto max-w-5xl">
           {subcategories.length > 0 && (
@@ -147,12 +145,13 @@ export default function CategoryPage({
       ) : (
         <div className="px-4 sm:px-6 pb-6">
           <div className="mx-auto max-w-5xl grid grid-cols-2 gap-4">
-            {filtered.map((dest) => (
+            {filtered.map((dest, i) => (
               <DestinationCard
                 key={dest.id}
                 destination={dest}
                 images={imagesByDestination.get(dest.id) ?? []}
                 isBookmarked={isBookmarked(dest.id)}
+                priority={i < 4}
               />
             ))}
           </div>

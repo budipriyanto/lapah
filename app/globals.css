@@ -10,6 +10,13 @@
   --font-mono: var(--font-geist-mono);
 }
 
+@theme {
+  --color-wisata: #0066cc;
+  --color-kuliner: #d97706;
+  --color-penginapan: #db2777;
+  --color-acara: #7c3aed;
+}
+
 body {
   background: var(--color-background);
   color: var(--color-foreground);

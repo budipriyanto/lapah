@@ -24,6 +24,15 @@ function filterBySearch(dest: { title: string; location?: string | null }, q: st
   );
 }
 
+function filterEventBySearch(evt: { title: string; location?: string | null }, q: string) {
+  if (!q) return true;
+  const query = q.toLowerCase();
+  return (
+    evt.title.toLowerCase().includes(query) ||
+    evt.location?.toLowerCase().includes(query)
+  );
+}
+
 function ExploreContent() {
   const { query } = useSearchContext();
   const { data, isLoading } = useAllData();
@@ -92,7 +101,12 @@ function ExploreContent() {
     [data]
   );
 
-  const hasResults = filteredWisata.length > 0 || filteredKuliner.length > 0 || filteredPenginapan.length > 0;
+  const filteredEvents = useMemo(
+    () => eventsList.filter((e) => filterEventBySearch(e, query)),
+    [eventsList, query]
+  );
+
+  const hasResults = filteredWisata.length > 0 || filteredKuliner.length > 0 || filteredPenginapan.length > 0 || filteredEvents.length > 0;
 
   if (isLoading) {
     return (
@@ -145,13 +159,14 @@ function ExploreContent() {
         <>
           {filteredWisata.length > 0 && (
             <ScrollSection title="Wisata" href="/wisata">
-              {filteredWisata.map((dest) => (
+              {filteredWisata.map((dest, i) => (
                 <DestinationCard
                   key={dest.id}
                   destination={dest}
                   images={imagesByDestination.get(dest.id) ?? []}
                   isBookmarked={isBookmarked(dest.id)}
                   compact
+                  priority={i < 4}
                 />
               ))}
             </ScrollSection>
@@ -159,13 +174,14 @@ function ExploreContent() {
 
           {filteredKuliner.length > 0 && (
             <ScrollSection title="Kuliner" href="/kuliner">
-              {filteredKuliner.map((dest) => (
+              {filteredKuliner.map((dest, i) => (
                 <DestinationCard
                   key={dest.id}
                   destination={dest}
                   images={imagesByDestination.get(dest.id) ?? []}
                   isBookmarked={isBookmarked(dest.id)}
                   compact
+                  priority={i < 4}
                 />
               ))}
             </ScrollSection>
@@ -173,26 +189,28 @@ function ExploreContent() {
 
           {filteredPenginapan.length > 0 && (
             <ScrollSection title="Penginapan" href="/penginapan">
-              {filteredPenginapan.map((dest) => (
+              {filteredPenginapan.map((dest, i) => (
                 <DestinationCard
                   key={dest.id}
                   destination={dest}
                   images={imagesByDestination.get(dest.id) ?? []}
                   isBookmarked={isBookmarked(dest.id)}
                   compact
+                  priority={i < 4}
                 />
               ))}
             </ScrollSection>
           )}
 
-          {!query && eventsList.length > 0 && !isLoading && (
+          {filteredEvents.length > 0 && (
             <ScrollSection title="Event" href="/events">
-              {eventsList.map((evt) => (
+              {filteredEvents.map((evt, i) => (
                 <EventCard
                   key={evt.id}
                   event={evt}
                   images={eventImagesByEvent.get(evt.id) ?? []}
                   compact
+                  priority={i < 4}
                 />
               ))}
             </ScrollSection>
