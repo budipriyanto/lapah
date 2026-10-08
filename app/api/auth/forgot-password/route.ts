@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool, { dbQueryOne } from '@/utils/db';
 import { v4 as uuidv4 } from 'uuid';
 import { sendResetPasswordEmail } from '@/utils/mail';
+import { checkRateLimit, getClientIp } from '@/utils/auth/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,6 +12,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Email is required' },
         { status: 400 }
+      );
+    }
+
+    const ipRl = checkRateLimit(`forgot:ip:${getClientIp(req)}`, 5, 60_000);
+    const emailRl = checkRateLimit(
+      `forgot:email:${String(email).toLowerCase()}`,
+      3,
+      15 * 60_000
+    );
+    const blocked = !ipRl.ok ? ipRl : !emailRl.ok ? emailRl : null;
+    if (blocked) {
+      return NextResponse.json(
+        { success: false, error: 'Permintaan terlalu banyak. Coba lagi nanti.' },
+        { status: 429, headers: { 'Retry-After': String(blocked.retryAfterSec) } }
       );
     }
 

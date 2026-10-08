@@ -1,6 +1,14 @@
+import type { NextRequest } from 'next/server';
+
 interface Bucket {
   count: number;
   resetAt: number;
+}
+
+export function getClientIp(req: NextRequest): string {
+  const xff = req.headers.get('x-forwarded-for');
+  if (xff) return xff.split(',')[0].trim();
+  return req.headers.get('x-real-ip') || 'unknown';
 }
 
 const buckets = new Map<string, Bucket>();

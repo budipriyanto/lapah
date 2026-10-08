@@ -87,9 +87,10 @@ export async function POST(req: NextRequest) {
     const passwordHash = await hashPassword(password);
 
     // Update password, clear reset token, increment token_version
-    // agar semua JWT lama (di semua perangkat) langsung hangus
+    // agar semua JWT lama (di semua perangkat) langsung hangus,
+    // sekaligus buka kunci akun (sudah membuktikan kepemilikan email)
     await pool.execute(
-      'UPDATE users SET password_hash = ?, password_reset_token = NULL, password_reset_expires = NULL, token_version = token_version + 1 WHERE id = ?',
+      'UPDATE users SET password_hash = ?, password_reset_token = NULL, password_reset_expires = NULL, token_version = token_version + 1, failed_login_attempts = 0, locked_until = NULL WHERE id = ?',
       [passwordHash, user.id]
     );
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyPassword } from '@/utils/auth/password';
 import { generateToken, createAuthCookie } from '@/utils/auth/jwt';
 import { dbQueryOne, dbQuery } from '@/utils/db';
-import { checkRateLimit, resetRateLimit } from '@/utils/auth/rate-limit';
+import { checkRateLimit, resetRateLimit, getClientIp } from '@/utils/auth/rate-limit';
 
 interface LoginUser {
   id: string;
@@ -14,6 +14,7 @@ interface LoginUser {
   failed_login_attempts: number;
   is_locked: number;
   lock_remaining: number;
+  had_lock: number;
   role: 'user' | 'admin' | 'moderator' | null;
 }
 
@@ -22,17 +23,15 @@ const LOCK_MINUTES = 15;
 const IP_LIMIT = 10;
 const IP_WINDOW_MS = 60_000;
 
-function getClientIp(req: NextRequest): string {
-  const xff = req.headers.get('x-forwarded-for');
-  if (xff) return xff.split(',')[0].trim();
-  return req.headers.get('x-real-ip') || 'unknown';
-}
-
 function tooManyMessage(retryAfterSec: number): string {
   if (retryAfterSec >= 120) {
     return `Terlalu banyak percobaan login. Coba lagi dalam ${Math.ceil(retryAfterSec / 60)} menit.`;
   }
   return `Terlalu banyak percobaan login. Coba lagi dalam ${retryAfterSec} detik.`;
+}
+
+function lockMessage(retryAfterSec: number): string {
+  return `${tooManyMessage(retryAfterSec)} Jika lupa password, gunakan "Lupa password?" untuk mengatur ulang sekarang.`;
 }
 
 export async function POST(req: NextRequest) {
@@ -67,6 +66,7 @@ export async function POST(req: NextRequest) {
               u.failed_login_attempts,
               (u.locked_until IS NOT NULL AND u.locked_until > NOW()) AS is_locked,
               COALESCE(GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), u.locked_until)), 0) AS lock_remaining,
+              (u.locked_until IS NOT NULL) AS had_lock,
               ur.role
        FROM users u
        LEFT JOIN user_roles ur ON ur.user_id = u.id
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
       const ghost = checkRateLimit(`login:ghost:${normalizedEmail}`, MAX_FAILED_ATTEMPTS - 1, LOCK_MINUTES * 60_000);
       if (!ghost.ok) {
         return NextResponse.json(
-          { success: false, error: tooManyMessage(ghost.retryAfterSec) },
+          { success: false, error: lockMessage(ghost.retryAfterSec) },
           { status: 429, headers: { 'Retry-After': String(ghost.retryAfterSec) } }
         );
       }
@@ -93,12 +93,22 @@ export async function POST(req: NextRequest) {
     // Lapis 1: lockout per-akun
     if (user.is_locked) {
       return NextResponse.json(
-        { success: false, error: tooManyMessage(user.lock_remaining) },
+        { success: false, error: lockMessage(user.lock_remaining) },
         {
           status: 429,
           headers: { 'Retry-After': String(user.lock_remaining) },
         }
       );
+    }
+
+    // Masa kunci sudah habis: reset counter & lock lama agar1x gagal
+    // berikutnya tidak langsung mengunci ulang15 menit
+    if (user.had_lock) {
+      await dbQuery(
+        'UPDATE users SET failed_login_attempts = 0, locked_until = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [user.id]
+      );
+      user.failed_login_attempts = 0;
     }
 
     if (!user.is_active) {
@@ -123,7 +133,7 @@ export async function POST(req: NextRequest) {
         );
         const retryAfterSec = LOCK_MINUTES * 60;
         return NextResponse.json(
-          { success: false, error: tooManyMessage(retryAfterSec) },
+          { success: false, error: lockMessage(retryAfterSec) },
           { status: 429, headers: { 'Retry-After': String(retryAfterSec) } }
         );
       }
