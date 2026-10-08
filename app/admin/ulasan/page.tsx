@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import type { Review } from "@/utils/types";
 
 export default function AdminUlasan() {
-  const [reviews, setReviews] = useState<(Review & { dest_title?: string })[]>([]);
+  const [reviews, setReviews] = useState<
+    (Review & { dest_title?: string; real_name?: string | null })[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -67,7 +69,15 @@ export default function AdminUlasan() {
                     {r.dest_title || "(destinasi)"}
                   </p>
                   <p className="text-xs text-[#737373]">
-                    {r.user_name} · {r.rating}/5 ·{" "}
+                    <span className="font-medium text-[#1a1a1a]">
+                      {r.real_name || r.user_name}
+                    </span>
+                    {r.real_name && r.user_name && r.real_name !== r.user_name && (
+                      <span className="text-[#a3a3a3]">
+                        {" "}· tampil sebagai &quot;{r.user_name}&quot;
+                      </span>
+                    )}
+                    {" · "}{r.rating}/5 ·{" "}
                     {new Date(r.created_at).toLocaleDateString("id-ID")}
                   </p>
                   {r.comment && (

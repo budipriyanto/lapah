@@ -37,7 +37,7 @@ export interface Review {
 
 export interface UserRole {
   id: string;
-  role: "user" | "admin";
+  role: "user" | "admin" | "moderator";
   full_name: string | null;
   created_at: string;
 }

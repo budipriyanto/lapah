@@ -60,7 +60,7 @@ export default function Navbar() {
         <div className="shrink-0">
           {user ? (
             <div className="flex items-center gap-2">
-              {role === "admin" && (
+              {(role === "admin" || role === "moderator") && (
                 <Link
                   href="/admin"
                   className="rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-[#737373] transition-colors hover:bg-zinc-100"

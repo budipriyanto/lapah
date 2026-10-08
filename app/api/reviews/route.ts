@@ -53,9 +53,15 @@ export async function GET(req: NextRequest) {
       params.push(destinationId);
     }
 
-    let sql = `SELECT r.*, d.title AS dest_title, d.slug AS dest_slug
-               FROM reviews r
-               JOIN destinations d ON d.id = r.destination_id`;
+    // ?all=1 menyertakan nama asli user dari DB (untuk panel admin/moderator)
+    let sql = `SELECT r.*, d.title AS dest_title, d.slug AS dest_slug`;
+    if (all) {
+      sql += `, u.full_name AS real_name`;
+    }
+    sql += ` FROM reviews r JOIN destinations d ON d.id = r.destination_id`;
+    if (all) {
+      sql += ` LEFT JOIN users u ON u.id = r.user_id`;
+    }
     if (conditions.length > 0) {
       sql += ` WHERE ${conditions.join(' AND ')}`;
     }
@@ -105,9 +111,10 @@ export async function POST(req: NextRequest) {
 
     const id = uuidv4();
     const text = typeof comment === 'string' ? comment.trim() : '';
+    const name = typeof userName === 'string' ? userName.trim() : '';
     await dbQuery(
       'INSERT INTO reviews (id, destination_id, user_id, user_name, rating, comment, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, destinationId, auth.userId, userName || 'Anonymous', rating, text || null, 'approved']
+      [id, destinationId, auth.userId, name || 'Anonymous', rating, text || null, 'approved']
     );
     await recomputeDestinationRating(destinationId);
     return NextResponse.json({ success: true, data: { id } }, { status: 201 });

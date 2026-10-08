@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/admin/destinasi", label: "Destinasi", icon: "📍" },
   { href: "/admin/events", label: "Events", icon: "📅" },
   { href: "/admin/ulasan", label: "Ulasan", icon: "💬" },
+  { href: "/admin/users", label: "Pengguna", icon: "👥", superadminOnly: true },
 ];
 
 export default function AdminLayout({
@@ -21,19 +22,24 @@ export default function AdminLayout({
   const pathname = usePathname();
   const router = useRouter();
 
+  const isAdmin = role === "admin" || role === "moderator";
+  const navItems = NAV_ITEMS.filter(
+    (item) => !item.superadminOnly || role === "moderator"
+  );
+
   useEffect(() => {
-    if (!loading && (!user || role !== "admin")) {
+    if (!loading && (!user || !isAdmin)) {
       router.push("/auth/login");
     }
-  }, [user, role, loading, router]);
+  }, [user, isAdmin, loading, router]);
 
-  if (loading || !user || role !== "admin") return null;
+  if (loading || !user || !isAdmin) return null;
 
   return (
     <div className="mx-auto flex max-w-6xl px-4 py-6 sm:px-6">
       <aside className="mr-6 hidden w-48 shrink-0 sm:block">
         <nav className="space-y-1">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const active = pathname === item.href;
             return (
               <Link
@@ -56,7 +62,7 @@ export default function AdminLayout({
       <main className="min-w-0 flex-1">
         {/* Mobile nav */}
         <div className="mb-4 flex gap-2 overflow-x-auto pb-1 sm:hidden">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const active = pathname === item.href;
             return (
               <Link
