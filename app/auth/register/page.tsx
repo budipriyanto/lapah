@@ -1,11 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const { signUp } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
