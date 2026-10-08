@@ -42,4 +42,21 @@ next-env.d.ts
 
 # project docs
 agents/
+sql/
+scripts/
+MIGRATION_PHASE1_STATUS.md
+PHASE1_COMPLETION_SUMMARY.txt
 AGENTS.md
+PHASE1_EXECUTE.sh
+PHASE1_EXECUTION_GUIDE.md
+PHASE1_QUICK_START.md
+README_MIGRATION.md
+# user uploads (dibuat saat runtime)
+public/uploads/
+
+# local runtime artifacts
+cookies.txt
+server.pid
+data/
+.eslintcache
+Thumbs.db

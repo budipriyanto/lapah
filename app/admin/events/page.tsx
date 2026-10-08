@@ -1,22 +1,42 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { createClient } from "@/utils/supabase/client";
-import { useEvents } from "@/hooks/useSupabaseQuery";
+import { useEffect, useState } from "react";
+import type { Event } from "@/utils/types";
 
 export default function AdminEvents() {
   const router = useRouter();
-  const { data: events, isLoading } = useEvents();
+  const [events, setEvents] = useState<Event[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+
+  useEffect(() => {
+    let stale = false;
+    fetch("/api/events")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (stale) return;
+        if (json?.success && Array.isArray(json.data)) {
+          setEvents(json.data);
+        }
+        setIsLoading(false);
+      })
+      .catch(() => {
+        if (!stale) setIsLoading(false);
+      });
+    return () => {
+      stale = true;
+    };
+  }, []);
 
   async function handleDelete(id: string) {
     if (!confirm("Hapus event ini?")) return;
     setDeleting(id);
-    const supabase = createClient();
-    await supabase.from("events").delete().eq("id", id);
+    const res = await fetch(`/api/events/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setEvents((prev) => prev.filter((e) => e.id !== id));
+    }
     setDeleting(null);
-    router.refresh();
   }
 
   return (
@@ -50,7 +70,7 @@ export default function AdminEvents() {
               {events.map((evt) => (
                 <tr key={evt.id} className="border-b border-zinc-100">
                   <td className="py-2 pr-4 text-[#1a1a1a]">{evt.title}</td>
-                  <td className="py-2 pr-4 text-[#737373]">{evt.date_start}{evt.date_end ? ` – ${evt.date_end}` : ""}</td>
+                  <td className="py-2 pr-4 text-[#737373]">{String(evt.date_start).slice(0, 10)}{evt.date_end ? ` – ${String(evt.date_end).slice(0, 10)}` : ""}</td>
                   <td className="py-2 pr-4 text-[#737373]">{evt.location || "–"}</td>
                   <td className="py-2">
                     <button

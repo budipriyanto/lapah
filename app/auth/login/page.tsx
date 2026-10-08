@@ -77,22 +77,22 @@ export default function LoginPage() {
         </button>
       </form>
 
-      <p className="mt-4 text-center text-sm text-[#737373]">
-        Belum punya akun?{" "}
-        <Link
-          href="/auth/register"
+<p className="mt-6 text-center text-sm text-[#737373]">
+          Belum punya akun?{" "}
+          <Link
+            href="/auth/register"
+            className="font-medium text-[#0066cc] hover:underline"
+          >
+            Daftar
+          </Link>{" "}
+        </p>
+        <p className="mt-2 text-center text-sm text-[#737373]">
+          <Link
+          href="/auth/forgot-password"
           className="font-medium text-[#0066cc] hover:underline"
-        >
-          Daftar
-        </Link>
-      </p>
-      <p className="mt-2 text-center text-sm text-[#737373]">
-        <Link
-          href="/auth/lupa-password"
-          className="font-medium text-[#0066cc] hover:underline"
-        >
+          >
           Lupa password?
-        </Link>
+          </Link>
       </p>
     </div>
   );

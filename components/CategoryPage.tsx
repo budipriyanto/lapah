@@ -1,14 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { DestinationImage } from "@/utils/supabase/types";
+import { useQuery } from "@tanstack/react-query";
+import type { Destination, DestinationImage } from "@/utils/types";
 import DestinationCard from "@/components/DestinationCard";
 import PageHeader from "@/components/PageHeader";
-import { useDestinationsByCategory, useDestinationImages } from "@/hooks/useSupabaseQuery";
 import { useSearchContext } from "@/contexts/SearchContext";
 import { useBookmarks } from "@/hooks/useBookmarks";
 
-function filterBySearch(dest: { title: string; location?: string | null }, q: string) {
+type DestinationWithImages = Destination & { images: DestinationImage[] };
+
+function filterBySearch(
+  dest: { title: string; location?: string | null },
+  q: string,
+) {
   if (!q) return true;
   const query = q.toLowerCase();
   return (
@@ -23,24 +28,17 @@ export default function CategoryPage({
   category: "wisata" | "kuliner" | "penginapan";
 }) {
   const { query } = useSearchContext();
-  const { data: destinations, isLoading: destLoading } = useDestinationsByCategory(category);
-  const { data: images } = useDestinationImages();
   const [activeSubcategory, setActiveSubcategory] = useState<string | null>(null);
   const { isBookmarked } = useBookmarks();
 
-  const imagesByDestination = useMemo(() => {
-    if (!images) return new Map<string, DestinationImage[]>();
-    const map = new Map<string, DestinationImage[]>();
-    for (const img of images) {
-      const existing = map.get(img.destination_id);
-      if (existing) {
-        existing.push(img);
-      } else {
-        map.set(img.destination_id, [img]);
-      }
-    }
-    return map;
-  }, [images]);
+  const { data: destinations, isLoading: destLoading } = useQuery({
+    queryKey: ["destinations", category],
+    queryFn: async () => {
+      const res = await fetch(`/api/destinations?category=${category}`);
+      const json = await res.json();
+      return (json.success ? json.data : []) as DestinationWithImages[];
+    },
+  });
 
   const subcategories = useMemo(() => {
     if (!destinations) return [];
@@ -149,7 +147,7 @@ export default function CategoryPage({
               <DestinationCard
                 key={dest.id}
                 destination={dest}
-                images={imagesByDestination.get(dest.id) ?? []}
+                images={dest.images ?? []}
                 isBookmarked={isBookmarked(dest.id)}
                 priority={i < 4}
               />

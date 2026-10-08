@@ -1,34 +1,35 @@
-import { createClient } from "@/utils/supabase/server";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { dbQueryOne } from "@/utils/db";
 import EventDetailClient from "./EventDetailClient";
 
-export async function generateMetadata({
-  params,
-}: {
+interface PageProps {
   params: Promise<{ slug: string }>;
-}): Promise<Metadata> {
-  const { slug } = await params;
-  const supabase = await createClient();
+}
 
-  const { data: evt } = await supabase
-    .from("events")
-    .select("*")
-    .eq("slug", slug)
-    .single();
+async function getEvent(slug: string) {
+  return dbQueryOne<{ id: string; title: string; description: string | null; location: string | null }>(
+    "SELECT id, title, description, location FROM events WHERE slug = ? OR id = ?",
+    [slug, slug]
+  );
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const evt = await getEvent(slug);
 
   if (!evt) return { title: "Event tidak ditemukan" };
 
-  const { data: imgs } = await supabase
-    .from("event_images")
-    .select("image_url")
-    .eq("event_id", evt.id)
-    .eq("is_hero", true)
-    .limit(1);
-
-  const ogImage = (imgs as { image_url: string }[] | null)?.[0]?.image_url;
+  const img = await dbQueryOne<{ image_url: string }>(
+    "SELECT image_url FROM event_images WHERE event_id = ? AND is_hero = true LIMIT 1",
+    [evt.id]
+  );
+  const ogImage = img?.image_url;
   const title = evt.title;
-  const description = evt.description?.slice(0, 160) ?? "Event di Lampung Timur";
+  const baseDesc = evt.description ?? "Event di Lampung Timur";
+  const description = (
+    evt.location ? `📍 ${evt.location}\n${baseDesc}` : baseDesc
+  ).slice(0, 160);
 
   return {
     title,
@@ -50,15 +51,9 @@ export async function generateMetadata({
   };
 }
 
-export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
+export default async function Page({ params }: PageProps) {
   const { slug } = await params;
-  const supabase = await createClient();
-
-  const { data: evt } = await supabase
-    .from("events")
-    .select("id")
-    .eq("slug", slug)
-    .single();
+  const evt = await getEvent(slug);
 
   if (!evt) notFound();
 

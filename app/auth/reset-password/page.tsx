@@ -1,67 +1,126 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
+import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 
 export default function ResetPasswordPage() {
-  const router = useRouter();
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
+  const tokenRef = useRef<string | null>(null);
+  const [tokenValid, setTokenValid] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    );
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        router.push("/auth/login");
+    const tokenFromUrl = new URLSearchParams(window.location.search).get("token");
+    tokenRef.current = tokenFromUrl;
+
+    let cancelled = false;
+
+    async function validateToken() {
+      if (!tokenFromUrl) {
+        if (!cancelled) {
+          setTokenValid(false);
+          setError("Link reset tidak valid. Silakan minta link baru.");
+        }
+        return;
       }
-    });
-  }, [router]);
+
+      try {
+        const res = await fetch(
+          `/api/auth/reset-password?token=${encodeURIComponent(tokenFromUrl)}`
+        );
+        const json = await res.json();
+        if (cancelled) return;
+
+        if (!res.ok || !json?.success) {
+          setTokenValid(false);
+          setError(json?.error || "Link reset tidak valid atau sudah kedaluwarsa.");
+        } else {
+          setTokenValid(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setTokenValid(false);
+          setError("Gagal memeriksa link reset. Silakan coba lagi.");
+        }
+      }
+    }
+
+    validateToken();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const token = tokenRef.current;
+    if (tokenValid !== true || !token) return;
+
     setError("");
-
-    if (password.length < 6) {
-      setError("Password minimal 6 karakter");
-      return;
-    }
-    if (password !== confirm) {
-      setError("Password tidak cocok");
-      return;
-    }
-
     setSubmitting(true);
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    );
-    const { error } = await supabase.auth.updateUser({ password });
-    setSubmitting(false);
 
-    if (error) {
-      setError(error.message);
-    } else {
-      setSuccess(true);
-      setTimeout(() => router.push("/"), 2000);
+    const res = await fetch(`/api/auth/reset-password?token=${encodeURIComponent(token)}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ password }),
+    });
+
+    const json = await res.json();
+
+    if (!res.ok || !json?.success) {
+      setError(json?.error || "Gagal mereset password");
+      if (json?.error && /terpakai|kedaluwarsa|tidak valid/i.test(json.error)) {
+        setTokenValid(false);
+      }
+      setSubmitting(false);
+      return;
     }
+
+    setSuccess(true);
+    setSubmitting(false);
   }
+
+  useEffect(() => {
+    if (!success) return;
+    const t = setTimeout(() => {
+      window.location.href = "/auth/login";
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [success]);
 
   if (success) {
     return (
-      <div className="mx-auto max-w-sm px-4 py-16 sm:px-6">
-        <div className="rounded-lg bg-green-50 px-4 py-6 text-center">
-          <p className="text-sm font-medium text-green-700">
-            Password berhasil diubah
-          </p>
-          <p className="mt-2 text-xs text-green-600">Mengarahkan ke beranda...</p>
+      <div className="mx-auto max-w-sm px-4 py-16 sm:px-6 text-center">
+        <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-green-50">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
         </div>
+        <h1 className="mb-2 text-2xl font-bold text-[#1a1a1a]">
+          Password Berhasil Diperbarui
+        </h1>
+        <p className="mb-6 text-sm text-[#737373]">
+          Sesi Anda telah berakhir. Silakan login kembali dengan password baru Anda.
+        </p>
+        <Link
+          href="/auth/login"
+          className="inline-block rounded-lg bg-[#0066cc] px-4 py-2 text-sm font-medium text-white hover:bg-[#0052a3]"
+        >
+          Login Sekarang
+        </Link>
+        <p className="mt-4 text-sm text-[#737373]">
+          <Link
+            href="/auth/login"
+            className="font-medium text-[#0066cc] hover:underline"
+          >
+            Kembali ke halaman login
+          </Link>
+        </p>
       </div>
     );
   }
@@ -69,51 +128,55 @@ export default function ResetPasswordPage() {
   return (
     <div className="mx-auto max-w-sm px-4 py-16 sm:px-6">
       <h1 className="mb-1 text-2xl font-bold text-[#1a1a1a]">Reset Password</h1>
-      <p className="mb-6 text-sm text-[#737373]">Buat password baru</p>
+      <p className="mb-6 text-sm text-[#737373]">
+        Masukkan password baru untuk akun Anda.
+      </p>
 
       {error && (
-        <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
-          {error}
-        </p>
+        <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+          <p>{error}</p>
+          {tokenValid === false && (
+            <p className="mt-2">
+              <Link
+                href="/auth/forgot-password"
+                className="font-medium text-[#0066cc] hover:underline"
+              >
+                Minta link reset baru
+              </Link>
+            </p>
+          )}
+        </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="password" className="mb-1 block text-sm font-medium text-[#1a1a1a]">
+          <label className="mb-1 block text-sm font-medium text-[#1a1a1a]">
             Password Baru
           </label>
           <input
-            id="password"
             type="password"
-            required
-            minLength={6}
+            placeholder="Password baru"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border border-zinc-200 px-3 py-2.5 text-sm outline-none focus:border-[#0066cc] focus:ring-1 focus:ring-[#0066cc]"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="confirm" className="mb-1 block text-sm font-medium text-[#1a1a1a]">
-            Konfirmasi Password
-          </label>
-          <input
-            id="confirm"
-            type="password"
+            minLength={8}
             required
-            minLength={6}
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            className="w-full rounded-lg border border-zinc-200 px-3 py-2.5 text-sm outline-none focus:border-[#0066cc] focus:ring-1 focus:ring-[#0066cc]"
+            disabled={tokenValid !== true}
+            className="w-full rounded-lg border border-zinc-200 px-3 py-2.5 text-sm outline-none focus:border-[#0066cc] focus:ring-1 focus:ring-[#0066cc] disabled:bg-zinc-100"
           />
         </div>
 
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || tokenValid !== true}
           className="w-full rounded-lg bg-[#0066cc] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#0052a3] disabled:opacity-50"
         >
-          {submitting ? "Menyimpan..." : "Ubah Password"}
+          {tokenValid === null
+            ? "Memeriksa link..."
+            : tokenValid === false
+              ? "Link tidak valid"
+              : submitting
+                ? "Menyimpan..."
+                : "Reset Password"}
         </button>
       </form>
     </div>

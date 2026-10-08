@@ -2,8 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useRef, useEffect, useMemo } from "react";
-import type { Destination, DestinationImage } from "@/utils/supabase/types";
+import { useState, useRef, useEffect, useMemo, useSyncExternalStore } from "react";
+import type { Destination, DestinationImage } from "@/utils/types";
+
+const subscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 interface DestinationCardProps {
   destination: Destination;
@@ -26,12 +30,13 @@ export default function DestinationCard({
   priority = false,
 }: DestinationCardProps) {
   const heroImages = useMemo(() => getHeroImages(images), [images]);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(subscribe, getClientSnapshot, getServerSnapshot);
   const [imgIndex, setImgIndex] = useState(0);
+  const [imgFailed, setImgFailed] = useState(false);
+  const useFallback = imgFailed || heroImages.length === 0;
   const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
 
   useEffect(() => {
-    setMounted(true);
     if (heroImages.length <= 1) return;
     intervalRef.current = setInterval(() => {
       setImgIndex((prev) => (prev + 1) % heroImages.length);
@@ -48,37 +53,37 @@ export default function DestinationCard({
         className="group w-56 shrink-0 snap-start overflow-hidden rounded-xl bg-white shadow-sm transition-all hover:shadow-md"
       >
         <div suppressHydrationWarning className="relative aspect-[3/2] overflow-hidden bg-zinc-100">
-          {heroImages.length > 0 ? (
-            mounted && heroImages.length > 1 ? (
-              heroImages.map((url, i) => (
-                <Image
-                  key={i}
-                  src={url}
-                  alt={destination.title}
-                  fill
-                  className={`object-cover transition-all duration-500 ${
-                    i === imgIndex ? "opacity-100" : "opacity-0"
-                  } group-hover:scale-105`}
-                  sizes="224px"
-                  priority={priority}
-                />
-              ))
-            ) : (
-              <Image
-                src={heroImages[0]}
-                alt={destination.title}
-                fill
-                className="object-cover group-hover:scale-105"
-                sizes="224px"
-                priority={priority}
-              />
-            )
-          ) : (
+          {useFallback ? (
             <Image
               src="/lamtim.jpeg"
               alt={destination.title}
               fill
               className="object-cover"
+              sizes="224px"
+              priority={priority}
+            />
+          ) : mounted && heroImages.length > 1 ? (
+            heroImages.map((url, i) => (
+              <Image
+                key={i}
+                src={url}
+                alt={destination.title}
+                fill
+                onError={() => setImgFailed(true)}
+                className={`object-cover transition-all duration-500 ${
+                  i === imgIndex ? "opacity-100" : "opacity-0"
+                } group-hover:scale-105`}
+                sizes="224px"
+                priority={priority}
+              />
+            ))
+          ) : (
+            <Image
+              src={heroImages[0]}
+              alt={destination.title}
+              fill
+              onError={() => setImgFailed(true)}
+              className="object-cover group-hover:scale-105"
               sizes="224px"
               priority={priority}
             />
@@ -109,6 +114,17 @@ export default function DestinationCard({
               {destination.location}
             </p>
           )}
+          {destination.review_count > 0 && (
+            <p className="mt-1 flex items-center gap-1 text-xs text-[#737373]">
+              <svg className="shrink-0 text-amber-500" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+              <span className="font-medium text-[#1a1a1a]">
+                {Number(destination.rating_avg).toFixed(1)}
+              </span>
+              <span>({destination.review_count} ulasan)</span>
+            </p>
+          )}
         </div>
       </Link>
     );
@@ -120,37 +136,37 @@ export default function DestinationCard({
       className="group block overflow-hidden rounded-xl bg-white shadow-sm transition-all hover:shadow-md"
     >
       <div suppressHydrationWarning className="relative aspect-[4/3] overflow-hidden bg-zinc-100">
-        {heroImages.length > 0 ? (
-          mounted && heroImages.length > 1 ? (
-            heroImages.map((url, i) => (
-              <Image
-                key={i}
-                src={url}
-                alt={destination.title}
-                fill
-                className={`object-cover transition-all duration-500 ${
-                  i === imgIndex ? "opacity-100" : "opacity-0"
-                } group-hover:scale-105`}
-                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                priority={priority}
-              />
-            ))
-          ) : (
-            <Image
-              src={heroImages[0]}
-              alt={destination.title}
-              fill
-              className="object-cover group-hover:scale-105"
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-              priority={priority}
-            />
-          )
-        ) : (
+        {useFallback ? (
           <Image
             src="/lamtim.jpeg"
             alt={destination.title}
             fill
             className="object-cover"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            priority={priority}
+          />
+        ) : mounted && heroImages.length > 1 ? (
+          heroImages.map((url, i) => (
+            <Image
+              key={i}
+              src={url}
+              alt={destination.title}
+              fill
+              onError={() => setImgFailed(true)}
+              className={`object-cover transition-all duration-500 ${
+                i === imgIndex ? "opacity-100" : "opacity-0"
+              } group-hover:scale-105`}
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              priority={priority}
+            />
+          ))
+        ) : (
+          <Image
+            src={heroImages[0]}
+            alt={destination.title}
+            fill
+            onError={() => setImgFailed(true)}
+            className="object-cover group-hover:scale-105"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             priority={priority}
           />
@@ -179,6 +195,17 @@ export default function DestinationCard({
         {destination.location && (
           <p className="mt-0.5 text-sm text-[#737373]">
             {destination.location}
+          </p>
+        )}
+        {destination.review_count > 0 && (
+          <p className="mt-1 flex items-center gap-1 text-sm text-[#737373]">
+            <svg className="shrink-0 text-amber-500" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+            <span className="font-medium text-[#1a1a1a]">
+              {Number(destination.rating_avg).toFixed(1)}
+            </span>
+            <span>({destination.review_count} ulasan)</span>
           </p>
         )}
       </div>

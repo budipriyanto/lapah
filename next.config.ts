@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
     loader: "custom",
     loaderFile: "./utils/image-loader.ts",
   },
+  // experimental: {
+  //   appDir: true,
+  // },
 };
 
 export default nextConfig;

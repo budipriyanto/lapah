@@ -1,30 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({ wisata: 0, kuliner: 0, penginapan: 0, event: 0, ulasan: 0, user: 0 });
 
   useEffect(() => {
-    const supabase = createClient();
-    Promise.all([
-      supabase.from("destinations").select("id", { count: "exact", head: true }).eq("category", "wisata"),
-      supabase.from("destinations").select("id", { count: "exact", head: true }).eq("category", "kuliner"),
-      supabase.from("destinations").select("id", { count: "exact", head: true }).eq("category", "penginapan"),
-      supabase.from("events").select("id", { count: "exact", head: true }),
-      supabase.from("reviews").select("id", { count: "exact", head: true }),
-      fetch("/api/users/count").then((r) => r.json()).then((d) => d.count ?? 0).catch(() => 0),
-    ]).then(([w, k, p, e, u, userCount]) => {
-      setStats({
-        wisata: w.count ?? 0,
-        kuliner: k.count ?? 0,
-        penginapan: p.count ?? 0,
-        event: e.count ?? 0,
-        ulasan: u.count ?? 0,
-        user: userCount as number,
-      });
-    });
+    let stale = false;
+    fetch("/api/admin/stats")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (stale || !json?.success) return;
+        const d = json.data;
+        setStats({
+          wisata: d.wisata,
+          kuliner: d.kuliner,
+          penginapan: d.penginapan,
+          event: d.events,
+          ulasan: d.ulasan,
+          user: d.users,
+        });
+      })
+      .catch(() => {});
+    return () => {
+      stale = true;
+    };
   }, []);
 
   const cards = [

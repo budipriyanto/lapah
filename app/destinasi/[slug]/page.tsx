@@ -1,34 +1,35 @@
-import { createClient } from "@/utils/supabase/server";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { dbQueryOne } from "@/utils/db";
 import DetailClient from "./DetailClient";
 
-export async function generateMetadata({
-  params,
-}: {
+interface PageProps {
   params: Promise<{ slug: string }>;
-}): Promise<Metadata> {
-  const { slug } = await params;
-  const supabase = await createClient();
+}
 
-  const { data: dest } = await supabase
-    .from("destinations")
-    .select("*")
-    .eq("slug", slug)
-    .single();
+async function getDestination(slug: string) {
+  return dbQueryOne<{ id: string; title: string; description: string | null; category: string; address: string | null }>(
+    "SELECT id, title, description, category, address FROM destinations WHERE slug = ? OR id = ?",
+    [slug, slug]
+  );
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const dest = await getDestination(slug);
 
   if (!dest) return { title: "Destinasi tidak ditemukan" };
 
-  const { data: imgs } = await supabase
-    .from("destination_images")
-    .select("image_url")
-    .eq("destination_id", dest.id)
-    .eq("is_hero", true)
-    .limit(1);
-
-  const ogImage = (imgs as { image_url: string }[] | null)?.[0]?.image_url;
+  const img = await dbQueryOne<{ image_url: string }>(
+    "SELECT image_url FROM destination_images WHERE destination_id = ? AND is_hero = true LIMIT 1",
+    [dest.id]
+  );
+  const ogImage = img?.image_url;
   const title = dest.title;
-  const description = dest.description?.slice(0, 160) ?? `Destinasi ${dest.category} di Lampung Timur`;
+  const baseDesc = dest.description ?? `Destinasi ${dest.category} di Lampung Timur`;
+  const description = (
+    dest.address ? `📍 ${dest.address}\n${baseDesc}` : baseDesc
+  ).slice(0, 160);
 
   return {
     title,
@@ -50,15 +51,9 @@ export async function generateMetadata({
   };
 }
 
-export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
+export default async function Page({ params }: PageProps) {
   const { slug } = await params;
-  const supabase = await createClient();
-
-  const { data: dest } = await supabase
-    .from("destinations")
-    .select("id")
-    .eq("slug", slug)
-    .single();
+  const dest = await getDestination(slug);
 
   if (!dest) notFound();
 

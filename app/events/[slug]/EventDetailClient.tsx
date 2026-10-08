@@ -3,22 +3,32 @@
 import { useEffect, useState } from "react";
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { useEventById, useEventImagesByEventId } from "@/hooks/useSupabaseQuery";
+import { useQuery } from "@tanstack/react-query";
+import type { Event, EventImage } from "@/utils/types";
 import ShareButton from "@/components/ShareButton";
 
+type EventDetail = Event & { images: EventImage[] };
+
 function formatDate(dateStr: string, endStr?: string | null) {
-  const start = new Date(dateStr + "T00:00:00");
+  const start = new Date(dateStr);
   const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric" };
   const formatted = start.toLocaleDateString("id-ID", opts);
   if (!endStr) return formatted;
-  const end = new Date(endStr + "T00:00:00");
+  const end = new Date(endStr);
   if (+start === +end) return formatted;
   return `${start.getDate()} – ${end.toLocaleDateString("id-ID", opts)}`;
 }
 
 export default function EventDetailClient({ id }: { id: string }) {
-  const { data: event, isLoading } = useEventById(id);
-  const { data: images = [] } = useEventImagesByEventId(id);
+  const { data: event, isLoading } = useQuery({
+    queryKey: ["event", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/events/${id}`);
+      if (res.status === 404) return null;
+      const json = await res.json();
+      return json.success ? (json.data as EventDetail) : null;
+    },
+  });
   const [selectedImage, setSelectedImage] = useState(0);
 
   useEffect(() => {
@@ -42,6 +52,7 @@ export default function EventDetailClient({ id }: { id: string }) {
 
   if (!event) return null;
 
+  const images = event.images ?? [];
   const sortedImages = [...images].sort((a, b) => a.image_order - b.image_order);
   const dateLabel = formatDate(event.date_start, event.date_end);
 
@@ -126,7 +137,11 @@ export default function EventDetailClient({ id }: { id: string }) {
       <div className="h-20" />
 
       <div className="fixed bottom-20 right-6 z-[60] flex flex-col gap-3">
-        <ShareButton title={event.title} text={event.description ?? undefined} />
+        <ShareButton
+          title={event.title}
+          text={event.description ?? undefined}
+          address={event.location ?? undefined}
+        />
       </div>
     </div>
   );

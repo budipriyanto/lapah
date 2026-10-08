@@ -2,9 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/utils/supabase/client";
 import { useDebounce } from "@/hooks/useDebounce";
-import type { Destination } from "@/utils/supabase/types";
+import type { Destination } from "@/utils/types";
 
 export default function AdminDestinasi() {
   const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -13,17 +12,24 @@ export default function AdminDestinasi() {
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebounce(search, 300);
   const perPage = 10;
-  const supabase = createClient();
 
   useEffect(() => {
-    supabase
-      .from("destinations")
-      .select("*")
-      .order("title")
-      .then(({ data }) => {
-        if (data) setDestinations(data);
+    let stale = false;
+    fetch("/api/destinations")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (stale) return;
+        if (json?.success && Array.isArray(json.data)) {
+          setDestinations(json.data);
+        }
         setLoading(false);
+      })
+      .catch(() => {
+        if (!stale) setLoading(false);
       });
+    return () => {
+      stale = true;
+    };
   }, []);
 
   const filtered = useMemo(
@@ -43,8 +49,10 @@ export default function AdminDestinasi() {
 
   async function handleDelete(id: string) {
     if (!confirm("Hapus destinasi ini? Semua gambar & ulasan terkait akan ikut terhapus.")) return;
-    await supabase.from("destinations").delete().eq("id", id);
-    setDestinations((prev) => prev.filter((d) => d.id !== id));
+    const res = await fetch(`/api/destinations/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setDestinations((prev) => prev.filter((d) => d.id !== id));
+    }
   }
 
   if (loading) {

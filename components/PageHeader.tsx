@@ -7,6 +7,7 @@ const bgClass: Record<string, string> = {
 
 interface PageHeaderProps {
   title: string;
+  description?: string;
   color?: "wisata" | "kuliner" | "penginapan" | "acara";
   icon?: string;
 }

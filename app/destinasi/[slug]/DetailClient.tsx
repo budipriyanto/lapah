@@ -1,28 +1,52 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { createClient } from "@/utils/supabase/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useBookmarks } from "@/hooks/useBookmarks";
 import { useAuth } from "@/contexts/AuthContext";
-import { useDestinationById, useDestinationImagesByDestinationId, useReviewsByDestinationId } from "@/hooks/useSupabaseQuery";
-import { useQueryClient } from "@tanstack/react-query";
+import type { Destination, DestinationImage, Review } from "@/utils/types";
 import ShareButton from "@/components/ShareButton";
+
+type DestinationDetail = Destination & { images: DestinationImage[] };
 
 export default function DetailClient({ id }: { id: string }) {
   const { isBookmarked, toggle } = useBookmarks();
   const { user } = useAuth();
 
-  const { data: destination, isLoading: destLoading } = useDestinationById(id);
-  const { data: images = [] } = useDestinationImagesByDestinationId(id);
-  const { data: reviews = [] } = useReviewsByDestinationId(id);
+  const {
+    data: destination,
+    isLoading: destLoading,
+  } = useQuery({
+    queryKey: ["destination", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/destinations/${id}`);
+      if (res.status === 404) return null;
+      const json = await res.json();
+      return json.success ? (json.data as DestinationDetail) : null;
+    },
+  });
+
+  const destinationId = destination?.id;
+
+  const { data: reviews = [] } = useQuery({
+    queryKey: ["reviews", destinationId],
+    queryFn: async () => {
+      const res = await fetch(`/api/reviews?destinationId=${destinationId}`);
+      const json = await res.json();
+      return (json.success ? json.data : []) as Review[];
+    },
+    enabled: !!destinationId,
+  });
+
   const [selectedImage, setSelectedImage] = useState(0);
 
   const [formName, setFormName] = useState("");
   const [formRating, setFormRating] = useState(0);
   const [formComment, setFormComment] = useState("");
+  const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const queryClient = useQueryClient();
 
@@ -32,32 +56,41 @@ export default function DetailClient({ id }: { id: string }) {
     }
   }, [destLoading, destination]);
 
-  const averageRating = useMemo(() => {
-    if (reviews.length === 0) return 0;
-    const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
-    return Math.round((sum / reviews.length) * 10) / 10;
-  }, [reviews]);
-
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formRating === 0) return;
 
+    setFormError("");
     setSubmitting(true);
-    const supabase = createClient();
-    const { error } = await supabase.from("reviews").insert({
-      destination_id: id,
-      user_id: user?.id ?? null,
-      user_name: formName.trim() || user?.email?.split("@")[0] || "Anonim",
-      rating: formRating,
-      comment: formComment.trim() || null,
-    });
+    try {
+      const res = await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          destinationId: id,
+          rating: formRating,
+          comment: formComment.trim(),
+          userName: formName.trim() || undefined,
+        }),
+      });
 
-    if (!error) {
-      await queryClient.invalidateQueries({ queryKey: ["reviews", id] });
+      if (res.ok) {
+        await queryClient.invalidateQueries({ queryKey: ["reviews", id] });
 
-      setFormName("");
-      setFormRating(0);
-      setFormComment("");
+        setFormName("");
+        setFormRating(0);
+        setFormComment("");
+      } else {
+        const json = await res.json().catch(() => null);
+        setFormError(
+          res.status === 401
+            ? "Sesi Anda berakhir. Silakan login ulang untuk mengirim ulasan."
+            : json?.error || "Gagal mengirim ulasan. Silakan coba lagi."
+        );
+      }
+    } catch (err) {
+      console.error("Review submit error:", err);
+      setFormError("Gagal mengirim ulasan. Periksa koneksi Anda.");
     }
     setSubmitting(false);
   };
@@ -78,7 +111,7 @@ export default function DetailClient({ id }: { id: string }) {
 
   if (!destination) return null;
 
-  const sortedImages = [...images].sort((a, b) => {
+  const sortedImages = [...(destination.images ?? [])].sort((a, b) => {
     if (a.is_hero && !b.is_hero) return -1;
     if (!a.is_hero && b.is_hero) return 1;
     return a.image_order - b.image_order;
@@ -164,13 +197,15 @@ export default function DetailClient({ id }: { id: string }) {
             <span>{destination.price_range}</span>
           </div>
         )}
-        {reviews.length > 0 && (
+        {destination.review_count > 0 && (
           <div className="flex items-center gap-1.5">
             <svg className="shrink-0 text-amber-500" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
             </svg>
-            <span className="text-[#1a1a1a] font-medium">{averageRating}</span>
-            <span>({reviews.length} ulasan)</span>
+            <span className="text-[#1a1a1a] font-medium">
+              {Number(destination.rating_avg).toFixed(1)}
+            </span>
+            <span>({destination.review_count} ulasan)</span>
           </div>
         )}
       </div>
@@ -268,6 +303,11 @@ export default function DetailClient({ id }: { id: string }) {
                 rows={3}
                 className="mb-3 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-[#0066cc] resize-none"
               />
+              {formError && (
+                <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+                  {formError}
+                </p>
+              )}
               <button
                 type="submit"
                 disabled={formRating === 0 || submitting}
@@ -343,7 +383,11 @@ export default function DetailClient({ id }: { id: string }) {
             <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
           </svg>
         </button>
-        <ShareButton title={destination.title} text={destination.description ?? undefined} />
+        <ShareButton
+          title={destination.title}
+          text={destination.description ?? undefined}
+          address={destination.address ?? destination.location ?? undefined}
+        />
       </div>
     </div>
   );

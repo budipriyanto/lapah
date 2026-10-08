@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo } from "react";
-import type { Event, EventImage } from "@/utils/supabase/types";
+import { useMemo, useState } from "react";
+import type { Event, EventImage } from "@/utils/types";
 
 interface EventCardProps {
   event: Event;
@@ -13,11 +13,11 @@ interface EventCardProps {
 }
 
 function formatDate(dateStr: string, endStr?: string | null) {
-  const start = new Date(dateStr + "T00:00:00");
+  const start = new Date(dateStr);
   const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric" };
   const formatted = start.toLocaleDateString("id-ID", opts);
   if (!endStr) return formatted;
-  const end = new Date(endStr + "T00:00:00");
+  const end = new Date(endStr);
   if (+start === +end) return formatted;
   return `${start.getDate()}–${end.toLocaleDateString("id-ID", opts)}`;
 }
@@ -29,6 +29,8 @@ function getHeroImage(images: EventImage[]): string | null {
 
 export default function EventCard({ event, images, compact = false, priority = false }: EventCardProps) {
   const heroUrl = useMemo(() => getHeroImage(images), [images]);
+  const [imgFailed, setImgFailed] = useState(false);
+  const useFallback = imgFailed || !heroUrl;
   const dateLabel = formatDate(event.date_start, event.date_end);
 
   return (
@@ -39,19 +41,25 @@ export default function EventCard({ event, images, compact = false, priority = f
       }`}
     >
       <div className="relative aspect-[16/9] overflow-hidden bg-zinc-100">
-        {heroUrl ? (
+        {useFallback ? (
           <Image
-            src={heroUrl}
+            src="/lamtim.jpeg"
             alt={event.title}
             fill
-            className="object-cover group-hover:scale-105 transition-transform duration-300"
+            className="object-cover"
             sizes={compact ? "224px" : "(max-width: 640px) 100vw, 50vw"}
             priority={priority}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-[#0066cc]/10">
-            <span className="text-4xl">📅</span>
-          </div>
+          <Image
+            src={heroUrl as string}
+            alt={event.title}
+            fill
+            onError={() => setImgFailed(true)}
+            className="object-cover group-hover:scale-105 transition-transform duration-300"
+            sizes={compact ? "224px" : "(max-width: 640px) 100vw, 50vw"}
+            priority={priority}
+          />
         )}
       </div>
       <div className={compact ? "p-2.5" : "p-3"}>

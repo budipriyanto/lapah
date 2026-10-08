@@ -1,106 +1,249 @@
+// AuthContext - Simplified JWT auth using API routes
+// Database queries go through API routes, not direct DB access
+
 "use client";
 
 import {
   createContext,
   useContext,
-  useEffect,
   useState,
+  useEffect,
+  useCallback,
   type ReactNode,
 } from "react";
-import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
-import type { User, Session } from "@supabase/supabase-js";
+
+export interface JWTUser {
+  id: string;
+  email: string;
+  fullName: string | null;
+  avatarUrl: string | null;
+  role: "user" | "admin" | "moderator";
+}
 
 interface AuthContextValue {
-  user: User | null;
-  session: Session | null;
+  user: JWTUser | null;
   loading: boolean;
-  role: "user" | "admin" | null;
+  role: "user" | "admin" | "moderator" | null;
   signIn: (email: string, password: string) => Promise<string | null>;
-  signUp: (email: string, password: string) => Promise<string | null>;
+  signUp: (email: string, password: string, fullName: string) => Promise<string | null>;
   signOut: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  forgotPassword: (email: string) => Promise<string | null>;
+  resetPassword: (token: string, password: string) => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+interface SessionData {
+  user: JWTUser;
+  role: "user" | "admin" | "moderator";
+}
+
+// Cookie auth_token adalah HttpOnly sehingga tidak bisa dibaca dari
+// document.cookie; cukup fetch /api/auth/me karena browser otomatis
+// mengirimkan cookie (same-origin credentials). Murni fetch tanpa setState.
+async function fetchSession(): Promise<SessionData | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const response = await fetch(`/api/auth/me`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (data.success && data.data) {
+      return { user: data.data.user, role: data.data.role };
+    }
+    return null;
+  } catch (error) {
+    console.error("Failed to get user:", error);
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [role, setRole] = useState<"user" | "admin" | null>(null);
+  const [user, setUser] = useState<JWTUser | null>(null);
+  const [role, setRole] = useState<"user" | "admin" | "moderator" | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
+  const applySession = useCallback((session: SessionData | null) => {
+    if (session) {
+      setUser(session.user);
+      setRole(session.role);
+    } else {
+      setUser(null);
+      setRole(null);
+    }
+    setLoading(false);
+  }, []);
 
-  async function fetchRole(userId: string) {
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("id", userId)
-      .single();
-    setRole(data?.role ?? null);
-  }
+  const getCurrentUser = useCallback(async () => {
+    applySession(await fetchSession());
+  }, [applySession]);
 
+  // Bootstrap sesi saat mount — setState dipanggil lewat callback .then
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) await fetchRole(session.user.id);
-      setLoading(false);
+    let stale = false;
+    fetchSession().then((session) => {
+      if (!stale) applySession(session);
     });
+    return () => {
+      stale = true;
+    };
+  }, [applySession]);
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) await fetchRole(session.user.id);
-    });
+  // Refresh user data
+  const refreshUser = useCallback(async () => {
+    await getCurrentUser();
+  }, [getCurrentUser]);
 
-    return () => subscription.unsubscribe();
-  }, [supabase]);
+  async function signIn(email: string, password: string): Promise<string | null> {
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-  async function signIn(
-    email: string,
-    password: string,
-  ): Promise<string | null> {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) return error.message;
-    router.push("/");
-    router.refresh();
-    return null;
+      if (!response.ok) {
+        const errorData = await response.json();
+        return errorData.error || "Login failed";
+      }
+
+      await getCurrentUser();
+      router.push("/");
+      router.refresh();
+      return null;
+    } catch (error) {
+      console.error("Login error:", error);
+      return "Login failed. Please try again.";
+    }
   }
 
   async function signUp(
     email: string,
     password: string,
+    fullName: string
   ): Promise<string | null> {
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: `${siteUrl}/auth/callback` },
-    });
-    if (error) return error.message;
-    return null;
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password, fullName }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        return errorData.error || "Registration failed";
+      }
+
+      // setelah register: TIDAK auto-login karena perlu verifikasi email
+      // cek apakah ada query verified=1 (artinya dari link verifikasi langsung)
+      const urlParams = new URLSearchParams(window.location.search);
+      const alreadyVerified = urlParams.get('verified') === '1';
+
+      if (alreadyVerified) {
+        // user sudah diverifikasi dari link email, login langsung
+        await getCurrentUser();
+        router.push("/");
+        router.refresh();
+        return null;
+      }
+
+      // user baru daftar, arahkan ke halaman cek email
+      // simpan email di localStorage agar bisa digunakan di halaman verify
+      if (typeof window !== "undefined") {
+        localStorage.setItem("pendingRegisterEmail", email);
+      }
+      router.push("/auth/register?check_email=1");
+      router.refresh();
+      return null;
+    } catch (error) {
+      console.error("Registration error:", error);
+      return "Registration failed. Please try again.";
+    }
+  }
+
+  async function forgotPassword(email: string): Promise<string | null> {
+    try {
+      const response = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        return errorData.error || "Failed to send reset email";
+      }
+
+      const data = await response.json();
+      if (data?.error) {
+        return data.error;
+      }
+      return null;
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      return "Failed. Please try again.";
+    }
+  }
+
+  async function resetPassword(token: string, password: string): Promise<string | null> {
+    try {
+      const response = await fetch(`/api/auth/reset-password?token=${token}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ password }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        return errorData.error || "Failed to reset password";
+      }
+
+      const data = await response.json();
+      return data.message || null;
+    } catch (error) {
+      console.error("Reset password error:", error);
+      return "Failed. Please try again.";
+    }
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
-    setRole(null);
-    router.push("/");
-    router.refresh();
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      setUser(null);
+      setRole(null);
+      router.push("/");
+      router.refresh();
+    }
   }
 
   return (
     <AuthContext.Provider
-      value={{ user, session, loading, role, signIn, signUp, signOut }}
+      value={{
+        user,
+        loading,
+        role,
+        signIn,
+        signUp,
+        signOut,
+        refreshUser,
+        forgotPassword,
+        resetPassword,
+      }}
     >
       {children}
     </AuthContext.Provider>
@@ -109,6 +252,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  if (!ctx) {
+    return {
+      user: null,
+      loading: false,
+      role: null,
+      signIn: async () => "AuthProvider not found",
+      signUp: async () => "AuthProvider not found",
+      signOut: async () => {},
+      refreshUser: async () => {},
+      forgotPassword: async () => "AuthProvider not found",
+      resetPassword: async () => "AuthProvider not found",
+    };
+  }
   return ctx;
 }

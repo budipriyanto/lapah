@@ -2,18 +2,20 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/utils/supabase/client";
 import { slugify } from "@/utils/slug";
+import { uploadImageFile } from "@/utils/client-image";
+import SaveProgressModal, { type SaveStage } from "@/components/SaveProgressModal";
 
 interface ImageEntry {
   url: string;
+  file?: File;
+  preview?: string;
   is_hero: boolean;
   order: number;
 }
 
 export default function TambahDestinasi() {
   const router = useRouter();
-  const supabase = createClient();
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     title: "",
@@ -26,20 +28,59 @@ export default function TambahDestinasi() {
     opening_hours: "",
     latitude: "",
     longitude: "",
+    contact_phone: "",
   });
   const [images, setImages] = useState<ImageEntry[]>([{ url: "", is_hero: true, order: 0 }]);
-  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
-  const [uploadMsg, setUploadMsg] = useState<{ idx: number; ok: boolean } | null>(null);
+  const [save, setSave] = useState({
+    open: false,
+    stage: "upload" as SaveStage,
+    progress: 0,
+    uploaded: 0,
+    total: 0,
+    error: null as string | null,
+  });
 
   function addImage() {
     setImages((prev) => [...prev, { url: "", is_hero: false, order: prev.length }]);
   }
 
   function removeImage(i: number) {
-    setImages((prev) => prev.filter((_, idx) => idx !== i));
+    setImages((prev) => {
+      const target = prev[i];
+      if (target?.preview) URL.revokeObjectURL(target.preview);
+      return prev.filter((_, idx) => idx !== i);
+    });
   }
 
-  function updateImage(i: number, field: keyof ImageEntry, value: any) {
+  function pickImage(i: number) {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      setImages((prev) =>
+        prev.map((img, idx) => {
+          if (idx !== i) return img;
+          if (img.preview) URL.revokeObjectURL(img.preview);
+          return { ...img, file, preview: URL.createObjectURL(file), url: "" };
+        }),
+      );
+    };
+    input.click();
+  }
+
+  function setManualUrl(i: number, value: string) {
+    setImages((prev) =>
+      prev.map((img, idx) => {
+        if (idx !== i) return img;
+        if (img.preview) URL.revokeObjectURL(img.preview);
+        return { ...img, url: value, file: undefined, preview: undefined };
+      }),
+    );
+  }
+
+  function updateImage(i: number, field: keyof ImageEntry, value: string | boolean) {
     setImages((prev) =>
       prev.map((img, idx) => (idx === i ? { ...img, [field]: value } : img)),
     );
@@ -47,47 +88,81 @@ export default function TambahDestinasi() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     setSubmitting(true);
 
-    const { data: dest, error } = await supabase
-      .from("destinations")
-      .insert({
-        title: form.title,
-        slug: slugify(form.title),
-        category: form.category,
-        subcategory: form.subcategory || null,
-        description: form.description || null,
-        location: form.location || null,
-        address: form.address || null,
-        price_range: form.price_range || null,
-        opening_hours: form.opening_hours || null,
-        latitude: form.latitude ? Number(form.latitude) : null,
-        longitude: form.longitude ? Number(form.longitude) : null,
-      })
-      .select()
-      .single();
+    const pending = images.filter((img) => img.file);
+    const steps = pending.length + 1;
+    let completed = 0;
+    setSave({
+      open: true,
+      stage: pending.length > 0 ? "upload" : "save",
+      progress: pending.length > 0 ? 0 : 10,
+      uploaded: 0,
+      total: pending.length,
+      error: null,
+    });
 
-    if (error || !dest) {
-      alert("Gagal menyimpan: " + (error?.message || "Unknown"));
-      setSubmitting(false);
-      return;
-    }
+    try {
+      const built: { url: string; is_hero: boolean }[] = [];
+      for (let i = 0; i < images.length; i++) {
+        const img = images[i];
+        let url = img.url.trim();
+        if (img.file) {
+          url = await uploadImageFile(img.file, {
+            slug: slugify(form.title),
+            order: i,
+          });
+          completed++;
+          setSave((s) => ({
+            ...s,
+            uploaded: completed,
+            progress: Math.round((completed / steps) * 100),
+          }));
+        }
+        if (url) built.push({ url, is_hero: img.is_hero });
+      }
 
-    const imageRows = images
-      .filter((img) => img.url.trim())
-      .map((img, i) => ({
-        destination_id: dest.id,
-        image_url: img.url.trim(),
-        is_hero: img.is_hero,
-        image_order: i,
+      setSave((s) => ({ ...s, stage: "save" }));
+
+      const res = await fetch("/api/destinations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: form.title,
+          slug: slugify(form.title),
+          category: form.category,
+          subcategory: form.subcategory || null,
+          description: form.description || null,
+          location: form.location || null,
+          address: form.address || null,
+          price_range: form.price_range || null,
+          opening_hours: form.opening_hours || null,
+          contact_phone: form.category === "penginapan" ? form.contact_phone || null : null,
+          latitude: form.latitude ? Number(form.latitude) : null,
+          longitude: form.longitude ? Number(form.longitude) : null,
+          images: built,
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || `HTTP ${res.status}`);
+      }
+
+      setSave((s) => ({ ...s, stage: "done", progress: 100 }));
+      setTimeout(() => {
+        router.push("/admin/destinasi");
+        router.refresh();
+      }, 1000);
+    } catch (err) {
+      setSave((s) => ({
+        ...s,
+        stage: "error",
+        error: err instanceof Error ? err.message : "Gagal menyimpan",
       }));
-
-    if (imageRows.length > 0) {
-      await supabase.from("destination_images").insert(imageRows);
+      setSubmitting(false);
     }
-
-    router.push("/admin/destinasi");
-    router.refresh();
   }
 
   return (
@@ -105,7 +180,7 @@ export default function TambahDestinasi() {
           <Select
             label="Category *"
             value={form.category}
-            onChange={(v) => setForm((f) => ({ ...f, category: v as any }))}
+            onChange={(v) => setForm((f) => ({ ...f, category: v as "wisata" | "kuliner" | "penginapan" }))}
             options={[
               { value: "wisata", label: "Wisata" },
               { value: "kuliner", label: "Kuliner" },
@@ -117,6 +192,15 @@ export default function TambahDestinasi() {
           <Input label="Location" value={form.location} onChange={(v) => setForm((f) => ({ ...f, location: v }))} />
           <Input label="Price Range" value={form.price_range} onChange={(v) => setForm((f) => ({ ...f, price_range: v }))} />
           <Input label="Opening Hours" value={form.opening_hours} onChange={(v) => setForm((f) => ({ ...f, opening_hours: v }))} />
+          {form.category === "penginapan" && (
+            <Input
+              label="Contact Phone"
+              value={form.contact_phone}
+              onChange={(v) => setForm((f) => ({ ...f, contact_phone: v }))}
+              type="tel"
+              maxLength={20}
+            />
+          )}
           <Input label="Latitude" value={form.latitude} onChange={(v) => setForm((f) => ({ ...f, latitude: v }))} type="number" step="any" />
           <Input label="Longitude" value={form.longitude} onChange={(v) => setForm((f) => ({ ...f, longitude: v }))} type="number" step="any" />
         </div>
@@ -131,9 +215,9 @@ export default function TambahDestinasi() {
             {images.map((img, i) => (
               <div key={i} className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
                 <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-zinc-100">
-                  {img.url.trim() ? (
+                  {img.preview || img.url.trim() ? (
                     <img
-                      src={img.url}
+                      src={img.preview || img.url}
                       alt=""
                       className="h-full w-full object-cover"
                       onError={(e) => {
@@ -151,73 +235,25 @@ export default function TambahDestinasi() {
                 </div>
                 <button
                   type="button"
-                  onClick={async () => {
-                    if (uploadingIdx !== null) return;
-                    const input = document.createElement("input");
-                    input.type = "file";
-                    input.accept = "image/*";
-                    input.onchange = async () => {
-                      const file = input.files?.[0];
-                      if (!file) return;
-                      setUploadingIdx(i);
-                      setUploadMsg(null);
-                      const fd = new FormData();
-                      fd.append("file", file);
-                      fd.append("slug", slugify(form.title));
-                      fd.append("order", String(i));
-                      try {
-                        const res = await fetch("/api/upload", { method: "POST", body: fd });
-                        const json = await res.json();
-                        if (json.url) {
-                          updateImage(i, "url", json.url);
-                          setUploadMsg({ idx: i, ok: true });
-                        } else {
-                          setUploadMsg({ idx: i, ok: false });
-                        }
-                      } catch {
-                        setUploadMsg({ idx: i, ok: false });
-                      }
-                      setUploadingIdx(null);
-                      setTimeout(() => setUploadMsg(null), 1500);
-                    };
-                    input.click();
-                  }}
+                  onClick={() => pickImage(i)}
                   className="shrink-0 rounded p-1.5 text-[#737373] hover:bg-zinc-100 disabled:opacity-50"
-                  title="Upload gambar"
+                  title="Pilih gambar"
                 >
-                  {uploadingIdx === i ? (
-                    <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="12" y1="2" x2="12" y2="6" />
-                      <line x1="12" y1="18" x2="12" y2="22" />
-                      <line x1="4.93" y1="4.93" x2="7.76" y2="7.76" />
-                      <line x1="16.24" y1="16.24" x2="19.07" y2="19.07" />
-                      <line x1="2" y1="12" x2="6" y2="12" />
-                      <line x1="18" y1="12" x2="22" y2="12" />
-                      <line x1="4.93" y1="19.07" x2="7.76" y2="16.24" />
-                      <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
-                    </svg>
-                  ) : uploadMsg?.idx === i && uploadMsg.ok ? (
-                    <svg className="text-green-500" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  ) : uploadMsg?.idx === i && !uploadMsg.ok ? (
-                    <svg className="text-red-500" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  ) : (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="17 8 12 3 7 8" />
-                      <line x1="12" y1="3" x2="12" y2="15" />
-                    </svg>
-                  )}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
                 </button>
+                {img.file && (
+                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                    belum diunggah
+                  </span>
+                )}
                 <input
-                  type="url"
                   placeholder="URL gambar"
                   value={img.url}
-                  onChange={(e) => updateImage(i, "url", e.target.value)}
+                  onChange={(e) => setManualUrl(i, e.target.value)}
                   className="min-w-[130px] flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-[#0066cc]"
                 />
                 <div className="flex shrink-0 items-center gap-2">
@@ -260,6 +296,15 @@ export default function TambahDestinasi() {
           </button>
         </div>
       </form>
+      <SaveProgressModal
+        open={save.open}
+        stage={save.stage}
+        progress={save.progress}
+        uploaded={save.uploaded}
+        total={save.total}
+        error={save.error}
+        onClose={() => setSave((s) => ({ ...s, open: false }))}
+      />
     </div>
   );
 }
@@ -271,6 +316,7 @@ function Input({
   required,
   type = "text",
   step,
+  maxLength,
 }: {
   label: string;
   value: string;
@@ -278,6 +324,7 @@ function Input({
   required?: boolean;
   type?: string;
   step?: string;
+  maxLength?: number;
 }) {
   return (
     <div>
@@ -286,6 +333,7 @@ function Input({
         type={type}
         required={required}
         step={step}
+        maxLength={maxLength}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-[#0066cc]"

@@ -1,45 +1,59 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
-import type { Review } from "@/utils/supabase/types";
+import { useAuth } from "@/contexts/AuthContext";
+import type { Review } from "@/utils/types";
+
+type MyReview = Review & { dest_title?: string; dest_slug?: string };
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
-  const [reviews, setReviews] = useState<(Review & { dest_title?: string; dest_slug?: string })[]>([]);
+  const [reviews, setReviews] = useState<MyReview[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
 
   useEffect(() => {
     if (!user) return;
-      supabase
-      .from("reviews")
-      .select("*, destinations!inner(title, slug)")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        if (data) {
-          setReviews(
-            data.map((r: any) => ({
-              ...r,
-              dest_title: r.destinations?.title ?? "",
-              dest_slug: r.destinations?.slug ?? "",
-            })),
-          );
+    let cancelled = false;
+
+    async function fetchMyReviews() {
+      try {
+        const res = await fetch("/api/reviews?mine=1");
+        const json = await res.json();
+        if (!cancelled && json.success) {
+          setReviews(json.data as MyReview[]);
         }
-        setLoading(false);
-      });
+      } catch (err) {
+        console.error("Failed to fetch my reviews:", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    fetchMyReviews();
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   async function handleDelete(reviewId: string) {
     if (!confirm("Hapus ulasan ini?")) return;
-    await supabase.from("reviews").delete().eq("id", reviewId).eq("user_id", user?.id);
-    setReviews((prev) => prev.filter((r) => r.id !== reviewId));
+    try {
+      const res = await fetch("/api/reviews", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: reviewId }),
+      });
+      if (res.ok) {
+        setReviews((prev) => prev.filter((r) => r.id !== reviewId));
+      }
+    } catch (err) {
+      console.error("Failed to delete review:", err);
+    }
   }
 
   if (authLoading) return null;
+
   if (!user) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16 text-center">
@@ -62,14 +76,24 @@ export default function ProfilePage() {
             {user.email?.charAt(0).toUpperCase() || "U"}
           </div>
           <div>
+            <p className="font-semibold text-[#1a1a1a]">{user.fullName}</p>
             <p className="font-semibold text-[#1a1a1a]">{user.email}</p>
           </div>
         </div>
+        <div className="mt-4 text-sm">
+        <Link
+          href="/auth/forgot-password"
+          className="text-[#0066cc] hover:underline"
+        >
+          Reset Password
+        </Link>
+      </div>
       </div>
 
       <h2 className="mb-4 text-lg font-semibold text-[#1a1a1a]">
         Ulasan Saya ({reviews.length})
       </h2>
+      
 
       {loading ? (
         <div className="space-y-3">
@@ -89,8 +113,8 @@ export default function ProfilePage() {
           {reviews.map((r) => (
             <div key={r.id} className="rounded-xl bg-white p-4 shadow-sm">
               <div className="mb-1 flex items-center justify-between">
-                  <Link
-                    href={`/destinasi/${r.dest_slug}`}
+                <Link
+                  href={`/destinasi/${r.dest_slug}`}
                   className="text-sm font-medium text-[#0066cc] hover:underline"
                 >
                   {r.dest_title || "(destinasi)"}

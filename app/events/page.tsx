@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import { useEvents, useEventImages } from "@/hooks/useSupabaseQuery";
-import type { EventImage } from "@/utils/supabase/types";
+import { useQuery } from "@tanstack/react-query";
+import type { Event, EventImage } from "@/utils/types";
 import EventCard from "@/components/EventCard";
 import PageHeader from "@/components/PageHeader";
 import { useSearchContext } from "@/contexts/SearchContext";
+
+type EventWithImages = Event & { images: EventImage[] };
 
 function filterBySearch(evt: { title: string; location?: string | null }, q: string) {
   if (!q) return true;
@@ -18,21 +20,15 @@ function filterBySearch(evt: { title: string; location?: string | null }, q: str
 
 export default function EventsPage() {
   const { query } = useSearchContext();
-  const { data: events, isLoading } = useEvents();
-  const { data: images = [] } = useEventImages();
 
-  const imagesByEvent = useMemo(() => {
-    const map = new Map<string, EventImage[]>();
-    for (const img of images) {
-      const existing = map.get(img.event_id);
-      if (existing) {
-        existing.push(img);
-      } else {
-        map.set(img.event_id, [img]);
-      }
-    }
-    return map;
-  }, [images]);
+  const { data: events, isLoading } = useQuery({
+    queryKey: ["events"],
+    queryFn: async () => {
+      const res = await fetch("/api/events");
+      const json = await res.json();
+      return (json.success ? json.data : []) as EventWithImages[];
+    },
+  });
 
   const filtered = useMemo(
     () => (events ?? []).filter((e) => filterBySearch(e, query)),
@@ -97,7 +93,7 @@ export default function EventsPage() {
             <EventCard
               key={evt.id}
               event={evt}
-              images={imagesByEvent.get(evt.id) ?? []}
+              images={evt.images ?? []}
               priority={i < 4}
             />
           ))}

@@ -1,36 +1,41 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
-import type { Review } from "@/utils/supabase/types";
+import type { Review } from "@/utils/types";
 
 export default function AdminUlasan() {
   const [reviews, setReviews] = useState<(Review & { dest_title?: string })[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
 
   useEffect(() => {
-    supabase
-      .from("reviews")
-      .select("*, destinations!inner(title)")
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        if (data) {
-          setReviews(
-            data.map((r: any) => ({
-              ...r,
-              dest_title: r.destinations?.title ?? "",
-            })),
-          );
+    let stale = false;
+    fetch("/api/reviews?all=1")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (stale) return;
+        if (json?.success && Array.isArray(json.data)) {
+          setReviews(json.data);
         }
         setLoading(false);
+      })
+      .catch(() => {
+        if (!stale) setLoading(false);
       });
+    return () => {
+      stale = true;
+    };
   }, []);
 
   async function handleDelete(id: string) {
     if (!confirm("Hapus ulasan ini?")) return;
-    await supabase.from("reviews").delete().eq("id", id);
-    setReviews((prev) => prev.filter((r) => r.id !== id));
+    const res = await fetch("/api/reviews", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    if (res.ok) {
+      setReviews((prev) => prev.filter((r) => r.id !== id));
+    }
   }
 
   if (loading) {

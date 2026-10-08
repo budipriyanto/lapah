@@ -11,6 +11,8 @@ export interface Destination {
   longitude: number | null;
   price_range: string | null;
   opening_hours: string | null;
+  rating_avg: number;
+  review_count: number;
   created_at: string;
 }
 
