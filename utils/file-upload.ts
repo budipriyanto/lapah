@@ -1,7 +1,23 @@
 import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
-import sharp from 'sharp';
+
+let sharpCache: typeof import('sharp').default | null = null;
+
+async function getSharp(): Promise<typeof import('sharp').default | null> {
+  if (!sharpCache) {
+    try {
+      sharpCache = (await import('sharp')).default;
+    } catch (e) {
+      console.warn(
+        'Sharp tidak tersedia, upload disimpan tanpa optimasi server:',
+        e instanceof Error ? e.message : e
+      );
+      return null;
+    }
+  }
+  return sharpCache;
+}
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'public/uploads';
 const UPLOAD_MAX_SIZE = parseInt(process.env.UPLOAD_MAX_SIZE || '5242880'); // 5MB
@@ -49,6 +65,8 @@ export async function optimizeImage(
   width: number = 1200,
   quality: number = 80
 ): Promise<Buffer> {
+  const sharp = await getSharp();
+  if (!sharp) return buffer;
   return await sharp(buffer)
     .resize(width, undefined, { fit: 'inside', withoutEnlargement: true })
     .webp({ quality })
@@ -107,17 +125,23 @@ export async function handleUpload(
     const safeFilename = generateFilename(filename, slug, order);
 
     const originalBuffer = Buffer.from(await file.arrayBuffer());
-    const meta = await sharp(originalBuffer).metadata();
-    const alreadyOptimized = meta.format === 'webp' && (meta.width ?? 0) <= 1200;
+    const sharp = await getSharp();
 
     let finalBuffer: Buffer;
     let finalName: string;
-    if (alreadyOptimized) {
+    if (!sharp) {
       finalBuffer = originalBuffer;
       finalName = safeFilename;
     } else {
-      finalBuffer = await optimizeImage(originalBuffer);
-      finalName = `${path.basename(safeFilename, path.extname(safeFilename))}.webp`;
+      const meta = await sharp(originalBuffer).metadata();
+      const alreadyOptimized = meta.format === 'webp' && (meta.width ?? 0) <= 1200;
+      if (alreadyOptimized) {
+        finalBuffer = originalBuffer;
+        finalName = safeFilename;
+      } else {
+        finalBuffer = await optimizeImage(originalBuffer);
+        finalName = `${path.basename(safeFilename, path.extname(safeFilename))}.webp`;
+      }
     }
 
     const dirPath = path.join(UPLOAD_DIR, category);
