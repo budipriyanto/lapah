@@ -63,6 +63,7 @@ export function useReviewsByDestinationId(destinationId: string) {
         .from("reviews")
         .select("*")
         .eq("destination_id", destinationId)
+        .eq("status", "approved")
         .order("created_at", { ascending: false });
       return (data ?? []) as Review[];
     },

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
+import { createClient } from "@/utils/supabase/client";
+import { authErrorMessage } from "@/utils/auth-error";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -11,17 +12,44 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    );
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        router.push("/auth/login");
+    const supabase = createClient();
+    let active = true;
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (
+        active &&
+        session &&
+        (event === "PASSWORD_RECOVERY" ||
+          event === "SIGNED_IN" ||
+          event === "INITIAL_SESSION")
+      ) {
+        setChecking(false);
       }
     });
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!active) return;
+      if (session) {
+        setChecking(false);
+        return;
+      }
+      router.replace(
+        "/auth/lupa-password?error=" +
+          encodeURIComponent(
+            "Sesi reset tidak ditemukan. Silakan minta tautan baru.",
+          ),
+      );
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -38,19 +66,30 @@ export default function ResetPasswordPage() {
     }
 
     setSubmitting(true);
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    );
+    const supabase = createClient();
     const { error } = await supabase.auth.updateUser({ password });
     setSubmitting(false);
 
     if (error) {
-      setError(error.message);
+      setError(authErrorMessage(error, "Gagal menyimpan password baru."));
     } else {
+      await supabase.auth.signOut().catch(() => {});
       setSuccess(true);
-      setTimeout(() => router.push("/"), 2000);
+      setTimeout(() => {
+        router.replace("/auth/login");
+        router.refresh();
+      }, 2000);
     }
+  }
+
+  if (checking) {
+    return (
+      <div className="mx-auto max-w-sm px-4 py-16 sm:px-6">
+        <div className="rounded-lg bg-zinc-50 px-4 py-6 text-center">
+          <p className="text-sm text-[#737373]">Memverifikasi tautan reset...</p>
+        </div>
+      </div>
+    );
   }
 
   if (success) {
@@ -60,7 +99,9 @@ export default function ResetPasswordPage() {
           <p className="text-sm font-medium text-green-700">
             Password berhasil diubah
           </p>
-          <p className="mt-2 text-xs text-green-600">Mengarahkan ke beranda...</p>
+          <p className="mt-2 text-xs text-green-600">
+            Mengarahkan ke halaman login...
+          </p>
         </div>
       </div>
     );

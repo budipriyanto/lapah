@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/admin/destinasi", label: "Destinasi", icon: "📍" },
   { href: "/admin/events", label: "Events", icon: "📅" },
   { href: "/admin/ulasan", label: "Ulasan", icon: "💬" },
+  { href: "/admin/setting", label: "Setting", icon: "⚙️" },
 ];
 
 export default function AdminLayout({

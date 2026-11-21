@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { useEventById, useEventImagesByEventId } from "@/hooks/useSupabaseQuery";
+import { NC_IMAGE_CARD_WIDTH, withImageWidth } from "@/utils/image-url";
 import ShareButton from "@/components/ShareButton";
 
 function formatDate(dateStr: string, endStr?: string | null) {
@@ -51,9 +52,10 @@ export default function EventDetailClient({ id }: { id: string }) {
         <div className="mb-6">
           <div className="relative aspect-[16/9] overflow-hidden rounded-xl bg-zinc-100">
             <Image
-              src={sortedImages[selectedImage]?.image_url}
+              src={withImageWidth(sortedImages[selectedImage]?.image_url)}
               alt={event.title}
               fill
+              unoptimized
               className="object-contain"
               priority
               sizes="(max-width: 768px) 100vw, 768px"
@@ -70,10 +72,11 @@ export default function EventDetailClient({ id }: { id: string }) {
                   }`}
                 >
                   <Image
-                    src={img.image_url}
+                    src={withImageWidth(img.image_url, NC_IMAGE_CARD_WIDTH)}
                     alt={`${event.title} ${i + 1}`}
                     width={80}
                     height={60}
+                    unoptimized
                     className="h-15 w-20 object-cover"
                   />
                 </button>

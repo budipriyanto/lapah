@@ -2,7 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useRef, useEffect, useMemo } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
+import { NC_IMAGE_CARD_WIDTH, withImageWidth } from "@/utils/image-url";
 import type { Destination, DestinationImage } from "@/utils/supabase/types";
 
 interface DestinationCardProps {
@@ -26,12 +33,15 @@ export default function DestinationCard({
   priority = false,
 }: DestinationCardProps) {
   const heroImages = useMemo(() => getHeroImages(images), [images]);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const [imgIndex, setImgIndex] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
 
   useEffect(() => {
-    setMounted(true);
     if (heroImages.length <= 1) return;
     intervalRef.current = setInterval(() => {
       setImgIndex((prev) => (prev + 1) % heroImages.length);
@@ -53,9 +63,10 @@ export default function DestinationCard({
               heroImages.map((url, i) => (
                 <Image
                   key={i}
-                  src={url}
+                  src={withImageWidth(url, NC_IMAGE_CARD_WIDTH)}
                   alt={destination.title}
                   fill
+                  unoptimized
                   className={`object-cover transition-all duration-500 ${
                     i === imgIndex ? "opacity-100" : "opacity-0"
                   } group-hover:scale-105`}
@@ -65,9 +76,10 @@ export default function DestinationCard({
               ))
             ) : (
               <Image
-                src={heroImages[0]}
+                src={withImageWidth(heroImages[0], NC_IMAGE_CARD_WIDTH)}
                 alt={destination.title}
                 fill
+                unoptimized
                 className="object-cover group-hover:scale-105"
                 sizes="224px"
                 priority={priority}
@@ -78,6 +90,7 @@ export default function DestinationCard({
               src="/lamtim.jpeg"
               alt={destination.title}
               fill
+              unoptimized
               className="object-cover"
               sizes="224px"
               priority={priority}
@@ -125,9 +138,10 @@ export default function DestinationCard({
             heroImages.map((url, i) => (
               <Image
                 key={i}
-                src={url}
+                src={withImageWidth(url, NC_IMAGE_CARD_WIDTH)}
                 alt={destination.title}
                 fill
+                unoptimized
                 className={`object-cover transition-all duration-500 ${
                   i === imgIndex ? "opacity-100" : "opacity-0"
                 } group-hover:scale-105`}
@@ -137,9 +151,10 @@ export default function DestinationCard({
             ))
           ) : (
             <Image
-              src={heroImages[0]}
+              src={withImageWidth(heroImages[0], NC_IMAGE_CARD_WIDTH)}
               alt={destination.title}
               fill
+              unoptimized
               className="object-cover group-hover:scale-105"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
               priority={priority}
@@ -150,6 +165,7 @@ export default function DestinationCard({
             src="/lamtim.jpeg"
             alt={destination.title}
             fill
+            unoptimized
             className="object-cover"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             priority={priority}

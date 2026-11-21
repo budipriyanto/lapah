@@ -1,14 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { createClient, type FileStat } from "webdav";
 import { NextRequest, NextResponse } from "next/server";
+import { createNextcloudClient, NEXTCLOUD_DIR } from "@/utils/nextcloud";
+import { ensureUploadedThumbnail } from "@/utils/sync";
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
-interface PropEntry {
-  tagName: string;
-  textContent: string | null;
-}
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies();
@@ -26,37 +22,28 @@ export async function POST(req: NextRequest) {
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
-  const davUrl = process.env.NEXTCLOUD_URL!;
-  const davUser = process.env.NEXTCLOUD_USERNAME!;
-  const pass = process.env.NEXTCLOUD_PASSWORD!;
-  const token = process.env.NEXTCLOUD_SHARE_TOKEN!;
-
-  const dav = createClient(davUrl, {
-    username: davUser,
-    password: pass,
-  });
+  const dav = createNextcloudClient();
 
   try {
-    await dav.getDirectoryContents("/Lapah");
+    await dav.getDirectoryContents(NEXTCLOUD_DIR);
   } catch {
-    await dav.createDirectory("/Lapah");
+    await dav.createDirectory(NEXTCLOUD_DIR);
   }
 
-  const ext = file.name.split(".").pop() || "jpg";
+  const ext = (file.name.split(".").pop() || "jpg")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .slice(0, 5) || "jpg";
   const slug = (formData.get("slug") as string) || "untitled";
   const order = (formData.get("order") as string) || "0";
   const safeSlug = slug.replace(/[^a-z0-9-]/g, "").slice(0, 50) || "untitled";
   const filename = `${safeSlug}-${order}-${Date.now()}.${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
-  await dav.putFileContents(`/Lapah/${filename}`, buffer);
+  await dav.putFileContents(`${NEXTCLOUD_DIR}/${filename}`, buffer);
 
-  const statResult = await dav.stat(`/Lapah/${filename}`);
-  const st = statResult as FileStat & { props?: PropEntry[] };
-  const fileId = st.props?.find((p) => p.tagName === "oc:fileid")?.textContent ?? "";
+  await ensureUploadedThumbnail(buffer, filename);
 
-  const host = new URL(davUrl).origin;
-  const encoded = encodeURIComponent(filename);
-  const url = `${host}/index.php/apps/files_sharing/publicpreview/${token}?file=/${encoded}&fileId=${fileId}&x=640&y=480&a=true`;
+  const url = `/api/nc-image?file=${encodeURIComponent(filename)}`;
 
   return NextResponse.json({ url });
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { NC_IMAGE_CARD_WIDTH, withImageWidth } from "@/utils/image-url";
 import { slugify } from "@/utils/slug";
 import type { Destination, DestinationImage } from "@/utils/supabase/types";
 
@@ -58,7 +59,7 @@ export default function EditDestinasi() {
   function addImage() {
     setImages((prev) => [
       ...prev,
-      { id: "", destination_id: id, image_url: "", is_hero: false, image_order: prev.length, created_at: "" },
+      { id: "", destination_id: id, image_url: "", image_size: null, is_hero: false, image_order: prev.length, source_id: null, created_at: "" },
     ]);
   }
 
@@ -161,7 +162,7 @@ export default function EditDestinasi() {
                 <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-zinc-100">
                   {img.image_url.trim() ? (
                     <img
-                      src={img.image_url}
+                      src={withImageWidth(img.image_url, NC_IMAGE_CARD_WIDTH)}
                       alt=""
                       className="h-full w-full object-cover"
                       onError={(e) => {
@@ -242,7 +243,7 @@ export default function EditDestinasi() {
                   )}
                 </button>
                 <input
-                  type="url"
+                  type="text"
                   placeholder="URL gambar"
                   value={img.image_url}
                   onChange={(e) => updateImage(i, "image_url", e.target.value)}

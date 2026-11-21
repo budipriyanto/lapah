@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/utils/supabase/client";
+import { NC_IMAGE_CARD_WIDTH, withImageWidth } from "@/utils/image-url";
 import { useBookmarks } from "@/hooks/useBookmarks";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDestinationById, useDestinationImagesByDestinationId, useReviewsByDestinationId } from "@/hooks/useSupabaseQuery";
@@ -90,9 +91,10 @@ export default function DetailClient({ id }: { id: string }) {
         <div className="mb-6">
           <div className="relative aspect-[16/9] overflow-hidden rounded-xl bg-zinc-100">
             <Image
-              src={sortedImages[selectedImage]?.image_url}
+              src={withImageWidth(sortedImages[selectedImage]?.image_url)}
               alt={destination.title}
               fill
+              unoptimized
               className="object-contain"
               priority
               sizes="(max-width: 768px) 100vw, 768px"
@@ -111,10 +113,11 @@ export default function DetailClient({ id }: { id: string }) {
                   }`}
                 >
                   <Image
-                    src={img.image_url}
+                    src={withImageWidth(img.image_url, NC_IMAGE_CARD_WIDTH)}
                     alt={`${destination.title} ${i + 1}`}
                     width={80}
                     height={60}
+                    unoptimized
                     className="h-15 w-20 object-cover"
                   />
                 </button>

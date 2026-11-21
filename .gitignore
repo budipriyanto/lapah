@@ -43,3 +43,6 @@ next-env.d.ts
 # project docs
 agents/
 AGENTS.md
+
+#supabase
+/supabase

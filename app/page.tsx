@@ -2,27 +2,26 @@
 
 import dynamic from "next/dynamic";
 import { useMemo } from "react";
-import type { DestinationImage, EventImage } from "@/utils/supabase/types";
-import DestinationCard from "@/components/DestinationCard";
+import type {
+  DestinationImage,
+  Event,
+  EventImage,
+} from "@/utils/supabase/types";
 import EventCard from "@/components/EventCard";
 import ScrollSection from "@/components/ScrollSection";
 import { useAllData } from "@/hooks/useSupabaseQuery";
 
 const WeatherCard = dynamic(() => import("@/components/WeatherCard"), { ssr: false });
 const PrayerCard = dynamic(() => import("@/components/PrayerCard"), { ssr: false });
+const HomeMap = dynamic(() => import("@/components/HomeMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="mb-6 h-[320px] animate-pulse rounded-xl bg-white shadow-sm sm:h-[400px]" />
+  ),
+});
 import { useSearchContext } from "@/contexts/SearchContext";
-import { useBookmarks } from "@/hooks/useBookmarks";
 
 const HOME_LIMIT = 10;
-
-function filterBySearch(dest: { title: string; location?: string | null }, q: string) {
-  if (!q) return true;
-  const query = q.toLowerCase();
-  return (
-    dest.title.toLowerCase().includes(query) ||
-    dest.location?.toLowerCase().includes(query)
-  );
-}
 
 function filterEventBySearch(evt: { title: string; location?: string | null }, q: string) {
   if (!q) return true;
@@ -33,10 +32,17 @@ function filterEventBySearch(evt: { title: string; location?: string | null }, q
   );
 }
 
+function sortEvents(list: Event[]): Event[] {
+  return [...list].sort(
+    (a, b) =>
+      (b.date_start ?? "").localeCompare(a.date_start ?? "") ||
+      a.title.localeCompare(b.title, "id"),
+  );
+}
+
 function ExploreContent() {
   const { query } = useSearchContext();
   const { data, isLoading } = useAllData();
-  const { isBookmarked } = useBookmarks();
 
   const imagesByDestination = useMemo(() => {
     if (!data) return new Map<string, DestinationImage[]>();
@@ -66,38 +72,8 @@ function ExploreContent() {
     return map;
   }, [data]);
 
-  const wisataList = useMemo(
-    () => (data?.destinations ?? []).filter((d) => d.category === "wisata").slice(0, HOME_LIMIT),
-    [data]
-  );
-
-  const kulinerList = useMemo(
-    () => (data?.destinations ?? []).filter((d) => d.category === "kuliner").slice(0, HOME_LIMIT),
-    [data]
-  );
-
-  const penginapanList = useMemo(
-    () => (data?.destinations ?? []).filter((d) => d.category === "penginapan").slice(0, HOME_LIMIT),
-    [data]
-  );
-
-  const filteredWisata = useMemo(
-    () => wisataList.filter((d) => filterBySearch(d, query)),
-    [wisataList, query]
-  );
-
-  const filteredKuliner = useMemo(
-    () => kulinerList.filter((d) => filterBySearch(d, query)),
-    [kulinerList, query]
-  );
-
-  const filteredPenginapan = useMemo(
-    () => penginapanList.filter((d) => filterBySearch(d, query)),
-    [penginapanList, query]
-  );
-
   const eventsList = useMemo(
-    () => (data?.events ?? []).slice(0, HOME_LIMIT),
+    () => sortEvents(data?.events ?? []).slice(0, HOME_LIMIT),
     [data]
   );
 
@@ -106,7 +82,7 @@ function ExploreContent() {
     [eventsList, query]
   );
 
-  const hasResults = filteredWisata.length > 0 || filteredKuliner.length > 0 || filteredPenginapan.length > 0 || filteredEvents.length > 0;
+  const hasResults = filteredEvents.length > 0;
 
   if (isLoading) {
     return (
@@ -143,6 +119,10 @@ function ExploreContent() {
         <div className="mx-auto max-w-5xl">
           <WeatherCard />
           <PrayerCard />
+          <HomeMap
+            destinations={data?.destinations ?? []}
+            imagesByDestination={imagesByDestination}
+          />
         </div>
       </div>
 
@@ -156,66 +136,17 @@ function ExploreContent() {
           </div>
         </div>
       ) : (
-        <>
-          {filteredWisata.length > 0 && (
-            <ScrollSection title="Wisata" href="/wisata">
-              {filteredWisata.map((dest, i) => (
-                <DestinationCard
-                  key={dest.id}
-                  destination={dest}
-                  images={imagesByDestination.get(dest.id) ?? []}
-                  isBookmarked={isBookmarked(dest.id)}
-                  compact
-                  priority={i < 4}
-                />
-              ))}
-            </ScrollSection>
-          )}
-
-          {filteredKuliner.length > 0 && (
-            <ScrollSection title="Kuliner" href="/kuliner">
-              {filteredKuliner.map((dest, i) => (
-                <DestinationCard
-                  key={dest.id}
-                  destination={dest}
-                  images={imagesByDestination.get(dest.id) ?? []}
-                  isBookmarked={isBookmarked(dest.id)}
-                  compact
-                  priority={i < 4}
-                />
-              ))}
-            </ScrollSection>
-          )}
-
-          {filteredPenginapan.length > 0 && (
-            <ScrollSection title="Penginapan" href="/penginapan">
-              {filteredPenginapan.map((dest, i) => (
-                <DestinationCard
-                  key={dest.id}
-                  destination={dest}
-                  images={imagesByDestination.get(dest.id) ?? []}
-                  isBookmarked={isBookmarked(dest.id)}
-                  compact
-                  priority={i < 4}
-                />
-              ))}
-            </ScrollSection>
-          )}
-
-          {filteredEvents.length > 0 && (
-            <ScrollSection title="Event" href="/events">
-              {filteredEvents.map((evt, i) => (
-                <EventCard
-                  key={evt.id}
-                  event={evt}
-                  images={eventImagesByEvent.get(evt.id) ?? []}
-                  compact
-                  priority={i < 4}
-                />
-              ))}
-            </ScrollSection>
-          )}
-        </>
+        <ScrollSection title="Event" href="/events">
+          {filteredEvents.map((evt, i) => (
+            <EventCard
+              key={evt.id}
+              event={evt}
+              images={eventImagesByEvent.get(evt.id) ?? []}
+              compact
+              priority={i < 4}
+            />
+          ))}
+        </ScrollSection>
       )}
     </div>
   );

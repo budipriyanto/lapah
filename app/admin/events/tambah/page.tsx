@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { NC_IMAGE_CARD_WIDTH, withImageWidth } from "@/utils/image-url";
 import { slugify } from "@/utils/slug";
 
 interface ImageEntry {
@@ -111,7 +112,7 @@ export default function TambahEvent() {
               <div key={i} className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
                 <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-zinc-100">
                   {img.url.trim() ? (
-                    <img src={img.url} alt="" className="h-full w-full object-cover"
+                    <img src={withImageWidth(img.url, NC_IMAGE_CARD_WIDTH)} alt="" className="h-full w-full object-cover"
                       onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                       onLoad={(e) => { (e.target as HTMLImageElement).style.display = "block"; }}
                     />
@@ -167,7 +168,7 @@ export default function TambahEvent() {
                   )}
                 </button>
                 <input
-                  type="url"
+                  type="text"
                   placeholder="URL gambar"
                   value={img.url}
                   onChange={(e) => updateImage(i, "url", e.target.value)}

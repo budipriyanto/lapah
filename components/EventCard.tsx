@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo } from "react";
+import { NC_IMAGE_CARD_WIDTH, withImageWidth } from "@/utils/image-url";
 import type { Event, EventImage } from "@/utils/supabase/types";
 
 interface EventCardProps {
@@ -41,9 +42,10 @@ export default function EventCard({ event, images, compact = false, priority = f
       <div className="relative aspect-[16/9] overflow-hidden bg-zinc-100">
         {heroUrl ? (
           <Image
-            src={heroUrl}
+            src={withImageWidth(heroUrl, NC_IMAGE_CARD_WIDTH)}
             alt={event.title}
             fill
+            unoptimized
             className="object-cover group-hover:scale-105 transition-transform duration-300"
             sizes={compact ? "224px" : "(max-width: 640px) 100vw, 50vw"}
             priority={priority}

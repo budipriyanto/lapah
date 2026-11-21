@@ -1,33 +1,61 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { createBrowserClient } from "@supabase/ssr";
+import { useSearchParams } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
+import { authErrorMessage } from "@/utils/auth-error";
 
 export default function LupaPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-sm px-4 py-16 sm:px-6">
+          <div className="rounded-lg bg-zinc-50 px-4 py-6 text-center">
+            <p className="text-sm text-[#737373]">Memuat...</p>
+          </div>
+        </div>
+      }
+    >
+      <LupaPasswordContent />
+    </Suspense>
+  );
+}
+
+function LupaPasswordContent() {
+  const searchParams = useSearchParams();
+  const queryError =
+    searchParams.get("error_description") || searchParams.get("error") || "";
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const [dismissQueryError, setDismissQueryError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const displayError = error || (dismissQueryError ? "" : queryError);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setDismissQueryError(true);
     setSubmitting(true);
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    );
+    const redirectTo = new URL("/auth/callback", window.location.origin);
+    redirectTo.searchParams.set("next", "/auth/reset-password");
+
+    const supabase = createClient();
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${siteUrl}/auth/reset-password`,
+      redirectTo: redirectTo.toString(),
     });
 
     setSubmitting(false);
     if (error) {
-      setError(error.message);
+      setError(
+        authErrorMessage(
+          error,
+          "Gagal mengirim email reset. SMTP bawaan Supabase hanya bisa mengirim ke email anggota tim; aktifkan custom SMTP.",
+        ),
+      );
     } else {
       setSent(true);
     }
@@ -40,9 +68,9 @@ export default function LupaPasswordPage() {
         Masukkan email untuk menerima tautan reset password
       </p>
 
-      {error && (
+      {displayError && (
         <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
-          {error}
+          {displayError}
         </p>
       )}
 
