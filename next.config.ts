@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
     loader: "custom",
     loaderFile: "./utils/image-loader.ts",
   },
+  outputFileTracingIncludes: {
+    "/api/*": ["./node_modules/@img/**"],
+  },
 };
 
 export default nextConfig;

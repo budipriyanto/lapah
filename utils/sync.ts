@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import path from "node:path";
-import sharp from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { createNextcloudClient, NEXTCLOUD_DIR } from "@/utils/nextcloud";
@@ -21,6 +20,12 @@ import {
   type SourceEvent,
   type SourceImage,
 } from "@/utils/source-api";
+
+let sharpModulePromise: Promise<typeof import("sharp")> | null = null;
+
+function loadSharp() {
+  return (sharpModulePromise ??= import("sharp"));
+}
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const ALLOWED_IMAGE_FORMATS = new Set(["jpeg", "png", "webp", "gif", "avif"]);
@@ -209,6 +214,7 @@ async function downloadImage(url: string): Promise<DownloadedImage> {
     }
 
     const buffer = Buffer.from(arrayBuffer);
+    const { default: sharp } = await loadSharp();
     const metadata = await sharp(buffer).metadata();
     const format = metadata.format;
 
@@ -283,6 +289,7 @@ async function putThumbnail(
   }
 
   try {
+    const { default: sharp } = await loadSharp();
     const resized = await sharp(source)
       .resize(THUMB_WIDTH, undefined, {
         fit: "inside",
